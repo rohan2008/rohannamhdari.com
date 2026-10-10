@@ -1,0 +1,653 @@
+<title>Open-Play Rotation Maker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800;900&family=Archivo:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: club-board split. Roster + settings rail on the left, live courts drawn as real court diagrams on the right; stacks courts-first on phones. */
+:root{
+  --ground:#E9EEF3;      /* chalky hardcourt surround */
+  --surface:#FFFFFF;
+  --ink:#13213A;         /* navy scoreboard ink */
+  --muted:#5B6A80;
+  --rule:#D3DBE4;
+  --court:#2E5F8E;       /* playing surface blue */
+  --court-out:#3C7457;   /* out-of-bounds green */
+  --line:#F7FAFC;
+  --ball:#DCEB3A;        /* optic ball yellow, used as fill only */
+  --ball-ink:#13213A;
+  --good:#2E7D4F; --warn:#A86A00; --bad:#B23A3A;
+  --display:"Big Shoulders Display","Arial Narrow",Impact,sans-serif;
+  --body:"Archivo","Helvetica Neue",Arial,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --ground:#0E1622; --surface:#16212F; --ink:#E5ECF5; --muted:#93A3B8; --rule:#26354A;
+    --court:#25507A; --court-out:#22513B; --line:#E9F0F6;
+    --good:#5CC48A; --warn:#E3A93A; --bad:#EF7D7D;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --ground:#0E1622; --surface:#16212F; --ink:#E5ECF5; --muted:#93A3B8; --rule:#26354A;
+  --court:#25507A; --court-out:#22513B; --line:#E9F0F6;
+  --good:#5CC48A; --warn:#E3A93A; --bad:#EF7D7D;
+}
+
+/* ---------- base ---------- */
+*{box-sizing:border-box}
+body{background:var(--ground);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.45;margin:0;padding-inline:16px;padding-block:20px 48px}
+.wrap{max-width:1220px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--ball);outline-offset:2px}
+.num{font-variant-numeric:tabular-nums}
+[hidden]{display:none!important}
+
+/* ---------- header ---------- */
+header.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px}
+h1{font-family:var(--display);font-weight:900;font-size:clamp(34px,6vw,54px);line-height:.9;letter-spacing:.01em;text-transform:uppercase;margin:0;text-wrap:balance}
+h1 span{display:block;font-size:.42em;letter-spacing:.18em;color:var(--muted);font-weight:800;margin-bottom:6px}
+.tag{color:var(--muted);max-width:42ch;margin:0}
+
+.grid{display:grid;grid-template-columns:minmax(300px,360px) 1fr;gap:20px;align-items:start}
+@media (max-width:900px){.grid{grid-template-columns:1fr}.main{order:-1}}
+
+/* ---------- panels & form controls ---------- */
+.panel{background:var(--surface);border:1px solid var(--rule);border-radius:10px;padding:18px;display:flex;flex-direction:column;gap:16px}
+.label{font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+h2{font-family:var(--display);font-weight:800;font-size:24px;text-transform:uppercase;letter-spacing:.03em;margin:0;line-height:1}
+.field{display:flex;flex-direction:column;gap:6px}
+.help{font-size:13px;color:var(--muted);margin:0}
+
+.seg{display:flex;flex-wrap:wrap;border:1px solid var(--rule);border-radius:8px;overflow:hidden}
+.seg label{flex:1 1 auto;position:relative;text-align:center}
+.seg input{position:absolute;opacity:0;inset:0;margin:0;cursor:pointer}
+.seg span{display:block;padding:8px 10px;font-weight:600;font-size:14px;border-left:1px solid var(--rule);cursor:pointer}
+.seg label:first-child span{border-left:0}
+.seg input:checked + span{background:var(--ink);color:var(--surface)}
+.seg input:focus-visible + span{outline:3px solid var(--ball);outline-offset:-3px}
+
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.stepper{display:flex;align-items:center;border:1px solid var(--rule);border-radius:8px;overflow:hidden;width:max-content}
+.stepper button{border:0;background:transparent;width:38px;height:38px;font-size:20px;cursor:pointer}
+.stepper button:hover{background:var(--ground)}
+.stepper output{min-width:34px;text-align:center;font-family:var(--display);font-size:24px;font-weight:800}
+
+input[type=text],input[type=number],textarea{background:var(--ground);border:1px solid var(--rule);border-radius:6px;padding:8px 10px;width:100%;min-width:0}
+input:focus,textarea:focus{border-color:var(--court)}
+
+.btn{border:1px solid var(--rule);background:var(--surface);border-radius:8px;padding:9px 14px;font-weight:600;cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:var(--ink)}
+.btn.primary{background:var(--ball);color:var(--ball-ink);border-color:var(--ball);font-weight:700}
+.btn.primary:hover{filter:brightness(.95)}
+.btn.quiet{border-color:transparent;background:transparent;color:var(--muted);padding-inline:8px}
+.btn.quiet:hover{color:var(--ink)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+
+/* ---------- roster ---------- */
+.roster-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.roster{display:flex;flex-direction:column;gap:6px;list-style:none;margin:0;padding:0}
+.roster li{display:grid;grid-template-columns:26px 1fr 92px 30px;gap:6px;align-items:center}
+.roster li.out input[type=text]{opacity:.5}
+.roster input[type=checkbox]{width:20px;height:20px;accent-color:var(--court);margin:0 auto;cursor:pointer}
+.roster .x{border:0;background:transparent;color:var(--muted);font-size:18px;cursor:pointer;border-radius:6px;height:34px}
+.roster .x:hover{color:var(--bad);background:var(--ground)}
+.cols{display:grid;grid-template-columns:26px 1fr 92px 30px;gap:6px;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.cols span:first-child{text-align:center}
+.add{display:grid;grid-template-columns:1fr 92px auto;gap:6px}
+details summary{cursor:pointer;font-weight:600;font-size:14px}
+details[open] summary{margin-bottom:8px}
+details textarea{min-height:110px;resize:vertical}
+
+.banner{background:var(--ball);color:var(--ball-ink);border-radius:8px;padding:10px 14px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;font-weight:600}
+.banner .btn{background:transparent;border-color:var(--ball-ink);color:var(--ball-ink)}
+
+/* ---------- board ---------- */
+.main{display:flex;flex-direction:column;gap:20px}
+.board{background:var(--surface);border:1px solid var(--rule);border-radius:10px;padding:18px;display:flex;flex-direction:column;gap:18px}
+.board-head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px}
+.round-no{display:flex;align-items:baseline;gap:10px}
+.round-no b{font-family:var(--display);font-weight:900;font-size:64px;line-height:.8}
+.round-no .label{font-size:12px}
+.actions{display:flex;flex-wrap:wrap;gap:8px}
+
+.courts{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
+.court-card{display:flex;flex-direction:column;gap:8px;animation:drop .35s ease-out both}
+.court-top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.court-top h3{font-family:var(--display);font-weight:800;font-size:22px;text-transform:uppercase;margin:0;letter-spacing:.04em}
+.pill{font-size:12px;font-weight:700;padding:3px 9px;border-radius:999px;border:1.5px solid currentColor}
+.pill.even{color:var(--good)} .pill.close{color:var(--warn)} .pill.uneven{color:var(--bad)}
+
+/* ---------- court diagram (service line position varies by sport) ---------- */
+.court{background:var(--court-out);padding:12px 16px;border-radius:6px}
+.court-in{--svc:32%;position:relative;background:var(--court);border:2px solid var(--line);display:grid;grid-template-columns:1fr 1fr;min-height:150px}
+.court[data-sport="tennis"] .court-in{--svc:46%}
+.court[data-sport="badminton"] .court-in{--svc:16%}
+.court-in::before{content:"";position:absolute;left:50%;top:-8px;bottom:-8px;width:4px;transform:translateX(-50%);background:var(--line);opacity:.9;z-index:2}
+.side{position:relative;display:flex;flex-direction:column;justify-content:space-around;align-items:center;padding:10px 6px;gap:8px}
+.side::before{content:"";position:absolute;top:0;bottom:0;width:2px;background:var(--line)}
+.side::after{content:"";position:absolute;top:50%;height:2px;background:var(--line);transform:translateY(-1px)}
+.side.a::before{right:var(--svc)} .side.a::after{left:0;right:var(--svc)}
+.side.b::before{left:var(--svc)} .side.b::after{right:0;left:var(--svc)}
+.player{position:relative;z-index:1;background:var(--court);color:#fff;padding:3px 8px;border-radius:4px;text-align:center;max-width:100%}
+.player strong{display:block;font-weight:700;font-size:15px;line-height:1.15;overflow-wrap:anywhere}
+.player small{display:block;font-size:12px;opacity:.85}
+.court-foot{display:flex;justify-content:space-between;font-size:13px;color:var(--muted)}
+
+.sitting{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.chip{background:var(--ground);border:1px solid var(--rule);border-radius:999px;padding:4px 12px;font-weight:600;font-size:14px}
+.empty{border:2px dashed var(--rule);border-radius:10px;padding:28px;text-align:center;color:var(--muted)}
+
+/* ---------- fairness & history ---------- */
+.split{display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start}
+@media (max-width:1100px){.split{grid-template-columns:1fr}}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{text-align:left;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:700;padding:6px 8px;border-bottom:1px solid var(--rule)}
+td{padding:7px 8px;border-bottom:1px solid var(--rule)}
+td.r,th.r{text-align:right}
+tr.hi td{color:var(--warn);font-weight:600}
+.history{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px;max-height:420px;overflow:auto}
+.history li{font-size:14px;border-bottom:1px solid var(--rule);padding-bottom:10px}
+.history b{font-family:var(--display);font-size:18px;font-weight:800;text-transform:uppercase;letter-spacing:.04em}
+.history .muted{color:var(--muted)}
+
+/* ---------- toast & motion ---------- */
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom, 0px));transform:translateX(-50%);background:var(--ink);color:var(--surface);padding:10px 16px;border-radius:8px;font-weight:600;max-width:calc(100% - 32px);z-index:10;transition:opacity .2s}
+@keyframes drop{from{transform:translateY(-6px);opacity:.3}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+<div class="wrap">
+  <h1><span>Club open play</span>Rotation Maker</h1>
+    <p class="tag">Check players in, enter their rating, and hit Next round. Sit-outs stay even, partners keep changing, and teams come out balanced.</p>
+  <div id="banner" class="banner" hidden>
+    <span>These are example players. Clear them to start your own session.</span>
+    <button class="btn" id="clearExamples" type="button">Clear examples</button>
+  </div>
+
+  <div class="grid">
+    <aside class="panel" aria-label="Session setup">
+      <div class="field">
+        <span class="label" id="sportLbl">Sport</span>
+        <div class="seg" role="radiogroup" aria-labelledby="sportLbl">
+          <label><input type="radio" name="sport" id="sp-pickleball" value="pickleball"><span>Pickleball</span></label>
+          <label><input type="radio" name="sport" id="sp-tennis" value="tennis"><span>Tennis</span></label>
+          <label><input type="radio" name="sport" id="sp-badminton" value="badminton"><span>Badminton</span></label>
+        </div>
+      </div>
+
+      <div class="row2">
+        <div class="field">
+          <span class="label" id="fmtLbl">Format</span>
+          <div class="seg" role="radiogroup" aria-labelledby="fmtLbl">
+            <label><input type="radio" name="format" id="fm-doubles" value="doubles"><span>Doubles</span></label>
+            <label><input type="radio" name="format" id="fm-singles" value="singles"><span>Singles</span></label>
+          </div>
+        </div>
+        <div class="field">
+          <span class="label">Courts</span>
+          <div class="stepper">
+            <button type="button" id="courtsDown" aria-label="One fewer court">−</button>
+            <output id="courtsOut" class="num">2</output>
+            <button type="button" id="courtsUp" aria-label="One more court">+</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="field">
+        <span class="label" id="grpLbl">Who plays together</span>
+        <div class="seg" role="radiogroup" aria-labelledby="grpLbl">
+          <label><input type="radio" name="grouping" id="gp-balanced" value="balanced"><span>Mix levels</span></label>
+          <label><input type="radio" name="grouping" id="gp-level" value="level"><span>Group by level</span></label>
+        </div>
+        <p class="help" id="grpHelp"></p>
+      </div>
+
+      <div class="field">
+        <div class="roster-head">
+          <h2>Players</h2>
+          <span class="label num" id="hereCount"></span>
+        </div>
+        <div class="cols"><span>In</span><span>Name</span><span id="ratingCol">DUPR</span><span></span></div>
+        <ul class="roster" id="roster"></ul>
+        <form class="add" id="addForm">
+          <input type="text" id="addName" placeholder="Add a player" aria-label="New player name" autocomplete="off">
+          <input type="text" id="addRating" inputmode="decimal" aria-label="New player rating" autocomplete="off">
+          <button class="btn" type="submit">Add</button>
+        </form>
+        <p class="help" id="ratingHelp"></p>
+        <details>
+          <summary>Paste a whole list</summary>
+          <div class="field">
+            <textarea id="bulk" placeholder="One player per line:&#10;Maya Chen, 4.21&#10;Jordan Ellis, 3.58"></textarea>
+            <button class="btn" type="button" id="bulkAdd">Add these players</button>
+          </div>
+        </details>
+      </div>
+    </aside>
+
+    <section class="main">
+      <div class="board">
+        <div class="board-head">
+          <div class="round-no"><span class="label">Round</span><b class="num" id="roundNo">–</b></div>
+          <div class="actions">
+            <button class="btn quiet" type="button" id="undo">Undo round</button>
+            <button class="btn" type="button" id="copy">Copy for group chat</button>
+            <button class="btn primary" type="button" id="next">Next round</button>
+          </div>
+        </div>
+        <div id="courts" class="courts"></div>
+        <div class="sitting" id="sitting"></div>
+      </div>
+
+      <div class="split">
+        <div class="panel">
+          <div class="roster-head"><h2>Fairness</h2><span class="label">this session</span></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Player</th><th class="r">Played</th><th class="r">Sat out</th><th class="r">Partners</th></tr></thead>
+              <tbody id="fair"></tbody>
+            </table>
+          </div>
+          <p class="help">Partners counts the different people each player has teamed with. Late arrivals are credited with the fewest games anyone present has played, so they slot into the rotation without skipping the line.</p>
+        </div>
+        <div class="panel">
+          <div class="roster-head"><h2>History</h2><button class="btn quiet" type="button" id="reset">New session</button></div>
+          <ul class="history" id="history"></ul>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<script>
+// ---- js/config.js ----
+// Fixed settings: rating systems per sport, help text, and the example roster.
+
+const STORAGE_KEY = 'openplay-rotation-v1';
+
+const SPORTS = {
+  pickleball: { rating: 'DUPR', ph: '3.75', help: 'DUPR runs 2.00 to 8.00. Leave it blank if a player doesn’t have one; they’re treated as mid-pack.' },
+  tennis:     { rating: 'UTR',  ph: '6.40', help: 'UTR runs 1.00 to 16.50. Leave it blank if a player doesn’t have one; they’re treated as mid-pack.' },
+  badminton:  { rating: 'BWF #', ph: '412', help: 'Enter the BWF world ranking position (1 is best). Leave it blank for unranked players; they’re treated as mid-pack.' }
+};
+
+const GROUP_HELP = {
+  balanced: 'Anyone can land on any court. Teams on each court are balanced by rating.',
+  level: 'Players with similar ratings share a court. Teams are still balanced.'
+};
+
+const SAMPLE_PLAYERS = [
+  ['Maya Chen', '4.21'], ['Jordan Ellis', '3.58'], ['Priya Raman', '3.92'], ['Sam Okafor', '3.05'], ['Lena Kowalski', '4.65'],
+  ['Diego Ramos', '3.34'], ['Tasha Brooks', '2.87'], ['Ken Ito', '3.71'], ['Ruth Adler', '3.12'], ['Omar Haddad', '4.02']
+];
+
+// ---- js/utils.js ----
+// Small helpers used everywhere.
+
+const $ = id => document.getElementById(id);
+const uid = () => Math.random().toString(36).slice(2, 9);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+// Order-independent key for a pair of player ids.
+const pairKey = (a, b) => a < b ? a + '|' + b : b + '|' + a;
+
+let toastTimer;
+function toast(msg) {
+  const t = $('toast');
+  t.textContent = msg; t.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.hidden = true, 2600);
+}
+
+// ---- js/state.js ----
+// Session state (S), saving to the browser, and adding players.
+
+let S = load();
+
+function fresh() {
+  return { sport: 'pickleball', format: 'doubles', courts: 2, grouping: 'balanced', players: [], names: {}, rounds: [], example: false };
+}
+function save() { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(S)); } catch (e) {} }
+function load() {
+  try { const s = JSON.parse(localStorage.getItem(STORAGE_KEY)); return s && Array.isArray(s.players) ? s : null; }
+  catch (e) { return null; }
+}
+
+function addPlayer(name, rating) {
+  name = name.trim(); if (!name) return;
+  const p = { id: uid(), name, rating: (rating || '').trim(), here: true, offset: 0 };
+  if (S.rounds.length) p.offset = lateCredit(p.id);
+  S.players.push(p);
+  S.names[p.id] = name; // kept so history still shows removed players
+}
+
+const playerOf = id => S.players.find(p => p.id === id) || { id, name: nameOf(id), rating: '' };
+const nameOf = id => (S.players.find(p => p.id === id) || {}).name || S.names[id] || 'Removed player';
+
+// ---- js/ratings.js ----
+// Turns DUPR / UTR / BWF ranking into one 0–1 skill scale so the rotation can compare players.
+
+function rawSkill(p) {
+  const r = parseFloat(String(p.rating).replace('#', ''));
+  if (!isFinite(r)) return null;
+  const clamp = v => Math.max(0, Math.min(1, v));
+  if (S.sport === 'pickleball') return clamp((r - 2) / 6);
+  if (S.sport === 'tennis') return clamp((r - 1) / 15.5);
+  return clamp(1 - Math.log10(Math.max(1, r)) / Math.log10(3000)); // badminton rank: lower number = stronger
+}
+
+// Skill for every player in the list; unrated players get the group's median.
+function skillMap(list) {
+  const known = list.map(rawSkill).filter(v => v !== null).sort((a, b) => a - b);
+  const median = known.length ? known[Math.floor(known.length / 2)] : 0.5;
+  const m = {};
+  list.forEach(p => { const v = rawSkill(p); m[p.id] = v === null ? median : v; });
+  return m;
+}
+
+function fmtRating(p) {
+  const r = parseFloat(String(p.rating).replace('#', ''));
+  if (!isFinite(r)) return S.sport === 'badminton' ? 'Unranked' : 'No rating';
+  if (S.sport === 'badminton') return 'World #' + Math.round(r);
+  return (S.sport === 'tennis' ? 'UTR ' : 'DUPR ') + r.toFixed(2);
+}
+
+// ---- js/rotation.js ----
+// The rotation itself: who sits out, who plays where, and who partners whom.
+
+// Tallies games, sit-outs, partners and opponents from the round history.
+function stats() {
+  const games = {}, sits = {}, lastSat = {}, partners = {}, opps = {}, partnerSet = {};
+  S.rounds.forEach((r, i) => {
+    r.courts.forEach(c => {
+      const [A, B] = c.teams;
+      [...A, ...B].forEach(id => games[id] = (games[id] || 0) + 1);
+      [A, B].forEach(T => {
+        for (let x = 0; x < T.length; x++) for (let y = x + 1; y < T.length; y++) {
+          const k = pairKey(T[x], T[y]); partners[k] = (partners[k] || 0) + 1;
+          (partnerSet[T[x]] ||= new Set()).add(T[y]);
+          (partnerSet[T[y]] ||= new Set()).add(T[x]);
+        }
+      });
+      A.forEach(a => B.forEach(b => { const k = pairKey(a, b); opps[k] = (opps[k] || 0) + 1; }));
+    });
+    r.sitting.forEach(id => { sits[id] = (sits[id] || 0) + 1; lastSat[id] = i; });
+  });
+  return { games, sits, lastSat, partners, opps, partnerSet };
+}
+
+// Games credited to a late arrival: the fewest anyone present has played.
+function lateCredit(id, st = stats()) {
+  const others = S.players.filter(p => p.here && p.id !== id && p.name.trim());
+  if (!others.length) return 0;
+  const min = Math.min(...others.map(p => (st.games[p.id] || 0) + (p.offset || 0)));
+  return Math.max(0, min - (st.games[id] || 0));
+}
+
+function nextRound(silent) {
+  const here = S.players.filter(p => p.here && p.name.trim());
+  const per = S.format === 'doubles' ? 4 : 2;
+  const nCourts = Math.min(S.courts, Math.floor(here.length / per));
+  if (nCourts < 1) { if (!silent) toast(`Check in at least ${per} players to start a ${S.format} round.`); return; }
+
+  const st = stats();
+  const eff = p => (st.games[p.id] || 0) + (p.offset || 0);
+  const ls = p => (p.id in st.lastSat) ? st.lastSat[p.id] : -1;
+
+  // Who sits: most games played first; ties go to whoever sat longest ago (or never).
+  const order = shuffle(here.slice()).sort((a, b) => (eff(b) - eff(a)) || (ls(a) - ls(b)));
+  const nSit = here.length - nCourts * per;
+  const sitters = order.slice(0, nSit), active = order.slice(nSit);
+
+  const sk = skillMap(here);
+  const avg = T => T.reduce((s, id) => s + sk[id], 0) / T.length;
+  // Lower is better: uneven teams, repeat partners and repeat opponents all add cost.
+  const pairCost = (A, B) => {
+    let c = Math.abs(avg(A) - avg(B)) * (per === 4 ? 40 : 20);
+    if (per === 4) c += 10 * ((st.partners[pairKey(A[0], A[1])] || 0) + (st.partners[pairKey(B[0], B[1])] || 0));
+    A.forEach(a => B.forEach(b => c += (per === 4 ? 3 : 6) * (st.opps[pairKey(a, b)] || 0)));
+    return c;
+  };
+  const splits = [[[0, 1], [2, 3]], [[0, 2], [1, 3]], [[0, 3], [1, 2]]];
+
+  // Try many random lineups and keep the cheapest.
+  let best = null, bestCost = Infinity;
+  for (let it = 0; it < 900; it++) {
+    const ids = shuffle(active.map(p => p.id));
+    if (S.grouping === 'level') {
+      const j = {}; ids.forEach(id => j[id] = sk[id] + Math.random() * 0.07);
+      ids.sort((a, b) => j[b] - j[a]);
+    }
+    let cost = 0; const courts = [];
+    for (let c = 0; c < nCourts; c++) {
+      const g = ids.slice(c * per, (c + 1) * per);
+      let teams, tc;
+      if (per === 2) { teams = [[g[0]], [g[1]]]; tc = pairCost(...teams); }
+      else splits.forEach(([x, y]) => {
+        const t = [[g[x[0]], g[x[1]]], [g[y[0]], g[y[1]]]];
+        const v = pairCost(...t);
+        if (tc === undefined || v < tc) { tc = v; teams = t; }
+      });
+      if (S.grouping === 'level') { const v = g.map(id => sk[id]); tc += (Math.max(...v) - Math.min(...v)) * 25; }
+      cost += tc; courts.push({ teams });
+    }
+    if (cost < bestCost) { bestCost = cost; best = courts; }
+  }
+
+  S.rounds.push({ courts: best, sitting: sitters.map(p => p.id) });
+  save(); render();
+}
+
+// ---- js/render.js ----
+// Draws the settings, roster, courts, fairness table and history from S.
+
+function renderSettings() {
+  $('sp-' + S.sport).checked = true;
+  $('fm-' + S.format).checked = true;
+  $('gp-' + S.grouping).checked = true;
+  $('courtsOut').textContent = S.courts;
+  $('grpHelp').textContent = GROUP_HELP[S.grouping];
+  const sp = SPORTS[S.sport];
+  $('ratingCol').textContent = sp.rating;
+  $('ratingHelp').textContent = sp.help;
+  $('addRating').placeholder = sp.ph;
+  $('banner').hidden = !S.example;
+}
+
+function renderRoster() {
+  const sp = SPORTS[S.sport];
+  $('roster').innerHTML = S.players.map(p => `
+    <li data-id="${p.id}" class="${p.here ? '' : 'out'}">
+      <input type="checkbox" id="in-${p.id}" ${p.here ? 'checked' : ''} aria-label="${esc(p.name)} is here">
+      <input type="text" id="nm-${p.id}" value="${esc(p.name)}" aria-label="Name">
+      <input type="text" id="rt-${p.id}" value="${esc(p.rating)}" inputmode="decimal" placeholder="${sp.ph}" aria-label="${sp.rating}" class="num">
+      <button class="x" type="button" aria-label="Remove ${esc(p.name)}">×</button>
+    </li>`).join('');
+  renderCount();
+}
+
+function renderCount() {
+  const n = S.players.filter(p => p.here && p.name.trim()).length;
+  $('hereCount').textContent = `${n} checked in`;
+}
+
+function balance(teams, sk) {
+  const avg = T => T.reduce((s, id) => s + sk[id], 0) / T.length;
+  const d = Math.abs(avg(teams[0]) - avg(teams[1]));
+  return d < 0.04 ? ['even', 'Even match'] : d < 0.1 ? ['close', 'Close match'] : ['uneven', 'Lopsided'];
+}
+
+function teamAvgLabel(T) {
+  if (S.sport === 'badminton') return '';
+  const v = T.map(id => parseFloat(playerOf(id).rating)).filter(isFinite);
+  return v.length ? 'avg ' + (v.reduce((a, b) => a + b, 0) / v.length).toFixed(2) : '';
+}
+
+function renderBoard() {
+  const r = S.rounds[S.rounds.length - 1];
+  $('roundNo').textContent = S.rounds.length || '–';
+  $('undo').disabled = !S.rounds.length;
+  $('copy').disabled = !S.rounds.length;
+  if (!r) {
+    $('courts').innerHTML = `<div class="empty">Check in your players, then press <strong>Next round</strong> to put people on court.</div>`;
+    $('sitting').innerHTML = '';
+    return;
+  }
+  const removed = r.courts.flatMap(c => c.teams.flat()).filter(id => !S.players.some(p => p.id === id)).map(playerOf);
+  const sk = skillMap(S.players.concat(removed));
+  const ply = id => {
+    const p = playerOf(id);
+    return `<div class="player"><strong>${esc(p.name)}</strong><small class="num">${esc(fmtRating(p))}</small></div>`;
+  };
+  $('courts').innerHTML = r.courts.map((c, i) => {
+    const [cls, txt] = balance(c.teams, sk);
+    return `<article class="court-card" style="animation-delay:${i * 60}ms">
+      <div class="court-top"><h3>Court ${i + 1}</h3><span class="pill ${cls}">${txt}</span></div>
+      <div class="court" data-sport="${S.sport}"><div class="court-in">
+        <div class="side a">${c.teams[0].map(ply).join('')}</div>
+        <div class="side b">${c.teams[1].map(ply).join('')}</div>
+      </div></div>
+      <div class="court-foot num"><span>${teamAvgLabel(c.teams[0])}</span><span>${teamAvgLabel(c.teams[1])}</span></div>
+    </article>`;
+  }).join('');
+  $('sitting').innerHTML = r.sitting.length
+    ? `<span class="label">Sitting out</span>` + r.sitting.map(id => `<span class="chip">${esc(nameOf(id))}</span>`).join('')
+    : `<span class="label">Nobody sits this round</span>`;
+}
+
+function renderFairness() {
+  const st = stats();
+  const rows = S.players.filter(p => p.name.trim() && (p.here || st.games[p.id] || st.sits[p.id]))
+    .map(p => ({ p, g: st.games[p.id] || 0, s: st.sits[p.id] || 0, n: (st.partnerSet[p.id] || new Set()).size }))
+    .sort((a, b) => b.g - a.g || a.p.name.localeCompare(b.p.name));
+  const here = rows.filter(r => r.p.here).map(r => r.s);
+  const maxS = Math.max(0, ...here), minS = Math.min(Infinity, ...here);
+  $('fair').innerHTML = rows.map(r => `<tr class="${r.p.here && maxS - minS > 1 && r.s === maxS ? 'hi' : ''}">
+      <td>${esc(r.p.name)}${r.p.here ? '' : ' <span class="help">(left)</span>'}</td>
+      <td class="r num">${r.g}</td><td class="r num">${r.s}</td><td class="r num">${S.format === 'doubles' ? r.n : '–'}</td></tr>`).join('')
+    || `<tr><td colspan="4" class="help">No players yet.</td></tr>`;
+}
+
+// Plain-text version of a round, used by History and "Copy for group chat".
+function roundText(r, i) {
+  const team = T => T.map(nameOf).join(' & ');
+  const lines = r.courts.map((c, k) => `Court ${k + 1}: ${team(c.teams[0])} vs ${team(c.teams[1])}`);
+  if (r.sitting.length) lines.push('Sitting out: ' + r.sitting.map(nameOf).join(', '));
+  return { head: `Round ${i + 1}`, lines };
+}
+
+function renderHistory() {
+  $('history').innerHTML = S.rounds.map((r, i) => {
+    const t = roundText(r, i);
+    return `<li><b>${t.head}</b><br>${t.lines.map(l => l.startsWith('Sitting') ? `<span class="muted">${esc(l)}</span>` : esc(l)).join('<br>')}</li>`;
+  }).reverse().join('') || `<li class="help">Rounds you play will be listed here.</li>`;
+}
+
+function render() { renderSettings(); renderRoster(); renderBoard(); renderFairness(); renderHistory(); }
+// Everything except the roster, so typing in a name box doesn't lose focus.
+function renderLive() { renderCount(); renderBoard(); renderFairness(); renderHistory(); }
+
+// ---- js/events.js ----
+// Wires buttons, toggles and inputs to the state.
+
+// ---------- settings ----------
+document.querySelectorAll('input[name=sport]').forEach(el => el.addEventListener('change', () => { S.sport = el.value; save(); render(); }));
+document.querySelectorAll('input[name=format]').forEach(el => el.addEventListener('change', () => { S.format = el.value; save(); render(); }));
+document.querySelectorAll('input[name=grouping]').forEach(el => el.addEventListener('change', () => { S.grouping = el.value; save(); renderSettings(); }));
+$('courtsDown').onclick = () => { S.courts = Math.max(1, S.courts - 1); save(); renderSettings(); };
+$('courtsUp').onclick = () => { S.courts = Math.min(30, S.courts + 1); save(); renderSettings(); };
+
+// ---------- roster ----------
+$('roster').addEventListener('input', e => {
+  const li = e.target.closest('li'); if (!li) return;
+  const p = S.players.find(x => x.id === li.dataset.id);
+  if (e.target.id.startsWith('nm-')) { p.name = e.target.value; if (p.name.trim()) S.names[p.id] = p.name; }
+  if (e.target.id.startsWith('rt-')) p.rating = e.target.value.trim();
+  save(); renderLive();
+});
+
+$('roster').addEventListener('change', e => {
+  if (!e.target.id.startsWith('in-')) return;
+  const li = e.target.closest('li');
+  const p = S.players.find(x => x.id === li.dataset.id);
+  p.here = e.target.checked;
+  if (p.here && S.rounds.length) p.offset = Math.max(p.offset || 0, lateCredit(p.id));
+  li.classList.toggle('out', !p.here);
+  save(); renderLive();
+  toast(p.here ? `${p.name} checked in. They’ll be in the next round.` : `${p.name} checked out. They won’t be scheduled.`);
+});
+
+$('roster').addEventListener('click', e => {
+  if (!e.target.classList.contains('x')) return;
+  const id = e.target.closest('li').dataset.id;
+  const p = S.players.find(x => x.id === id);
+  S.players = S.players.filter(x => x.id !== id);
+  save(); render(); toast(`Removed ${p.name}.`);
+});
+
+$('addForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const n = $('addName').value.trim();
+  if (!n) { toast('Type a name first.'); return; }
+  addPlayer(n, $('addRating').value);
+  $('addName').value = ''; $('addRating').value = ''; $('addName').focus();
+  save(); render();
+});
+
+$('bulkAdd').onclick = () => {
+  const lines = $('bulk').value.split('\n').map(l => l.trim()).filter(Boolean);
+  if (!lines.length) { toast('Paste one player per line, like "Maya Chen, 4.21".'); return; }
+  lines.forEach(l => {
+    const m = l.match(/^(.*?)[,\t;]\s*(#?[\d.]+)?\s*$/);
+    m ? addPlayer(m[1], m[2] || '') : addPlayer(l, '');
+  });
+  $('bulk').value = '';
+  save(); render(); toast(`Added ${lines.length} player${lines.length > 1 ? 's' : ''}.`);
+};
+
+$('clearExamples').onclick = () => {
+  const keep = { sport: S.sport, format: S.format, courts: S.courts, grouping: S.grouping };
+  S = Object.assign(fresh(), keep);
+  save(); render(); $('addName').focus();
+};
+
+// ---------- rounds ----------
+$('next').onclick = () => nextRound(false);
+$('undo').onclick = () => { if (!S.rounds.length) return; S.rounds.pop(); save(); render(); toast('Last round removed.'); };
+
+$('reset').onclick = () => {
+  const b = $('reset');
+  if (b.dataset.armed) {
+    S.rounds = []; S.players.forEach(p => p.offset = 0);
+    delete b.dataset.armed; b.textContent = 'New session';
+    save(); render(); toast('Started a new session. Players kept, history cleared.');
+    return;
+  }
+  b.dataset.armed = '1'; b.textContent = 'Tap again to clear history';
+  setTimeout(() => { delete b.dataset.armed; b.textContent = 'New session'; }, 3500);
+};
+
+$('copy').onclick = async () => {
+  const r = S.rounds[S.rounds.length - 1]; if (!r) return;
+  const t = roundText(r, S.rounds.length - 1);
+  try {
+    await navigator.clipboard.writeText([t.head, ...t.lines].join('\n'));
+    toast(`Round ${S.rounds.length} copied. Paste it into your group chat.`);
+  } catch (e) {
+    toast('Your browser blocked copying. The round is listed under History to copy by hand.');
+  }
+};
+
+// ---- js/main.js ----
+// Startup: load the example session on first visit, then draw the page.
+
+if (!S) {
+  S = fresh();
+  SAMPLE_PLAYERS.forEach(([name, rating]) => addPlayer(name, rating));
+  S.example = true;
+  nextRound(true);
+}
+render();
+</script>
