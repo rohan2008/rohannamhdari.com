@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Open-Play Rotation Maker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800;900&family=Archivo:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1><span>Club open play</span>Rotation Maker</h1>
+    <p class="tag">Check players in, enter their rating, and hit Next round. Sit-outs stay even, partners keep changing, and teams come out balanced.</p>
+  </header>
+
+  <div id="banner" class="banner" hidden>
+    <span>These are example players. Clear them to start your own session.</span>
+    <button class="btn" id="clearExamples" type="button">Clear examples</button>
+  </div>
+
+  <div class="grid">
+    <aside class="panel" aria-label="Session setup">
+      <div class="field">
+        <span class="label" id="sportLbl">Sport</span>
+        <div class="seg" role="radiogroup" aria-labelledby="sportLbl">
+          <label><input type="radio" name="sport" id="sp-pickleball" value="pickleball"><span>Pickleball</span></label>
+          <label><input type="radio" name="sport" id="sp-tennis" value="tennis"><span>Tennis</span></label>
+          <label><input type="radio" name="sport" id="sp-badminton" value="badminton"><span>Badminton</span></label>
+        </div>
+      </div>
+
+      <div class="row2">
+        <div class="field">
+          <span class="label" id="fmtLbl">Format</span>
+          <div class="seg" role="radiogroup" aria-labelledby="fmtLbl">
+            <label><input type="radio" name="format" id="fm-doubles" value="doubles"><span>Doubles</span></label>
+            <label><input type="radio" name="format" id="fm-singles" value="singles"><span>Singles</span></label>
+          </div>
+        </div>
+        <div class="field">
+          <span class="label">Courts</span>
+          <div class="stepper">
+            <button type="button" id="courtsDown" aria-label="One fewer court">−</button>
+            <output id="courtsOut" class="num">2</output>
+            <button type="button" id="courtsUp" aria-label="One more court">+</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="field">
+        <span class="label" id="grpLbl">Who plays together</span>
+        <div class="seg" role="radiogroup" aria-labelledby="grpLbl">
+          <label><input type="radio" name="grouping" id="gp-balanced" value="balanced"><span>Mix levels</span></label>
+          <label><input type="radio" name="grouping" id="gp-level" value="level"><span>Group by level</span></label>
+        </div>
+        <p class="help" id="grpHelp"></p>
+      </div>
+
+      <div class="field">
+        <div class="roster-head">
+          <h2>Players</h2>
+          <span class="label num" id="hereCount"></span>
+        </div>
+        <div class="cols"><span>In</span><span>Name</span><span id="ratingCol">DUPR</span><span></span></div>
+        <ul class="roster" id="roster"></ul>
+        <form class="add" id="addForm">
+          <input type="text" id="addName" placeholder="Add a player" aria-label="New player name" autocomplete="off">
+          <input type="text" id="addRating" inputmode="decimal" aria-label="New player rating" autocomplete="off">
+          <button class="btn" type="submit">Add</button>
+        </form>
+        <p class="help" id="ratingHelp"></p>
+        <details>
+          <summary>Paste a whole list</summary>
+          <div class="field">
+            <textarea id="bulk" placeholder="One player per line:&#10;Maya Chen, 4.21&#10;Jordan Ellis, 3.58"></textarea>
+            <button class="btn" type="button" id="bulkAdd">Add these players</button>
+          </div>
+        </details>
+      </div>
+    </aside>
+
+    <section class="main">
+      <div class="board">
+        <div class="board-head">
+          <div class="round-no"><span class="label">Round</span><b class="num" id="roundNo">–</b></div>
+          <div class="actions">
+            <button class="btn quiet" type="button" id="undo">Undo round</button>
+            <button class="btn" type="button" id="copy">Copy for group chat</button>
+            <button class="btn primary" type="button" id="next">Next round</button>
+          </div>
+        </div>
+        <div id="courts" class="courts"></div>
+        <div class="sitting" id="sitting"></div>
+      </div>
+
+      <div class="split">
+        <div class="panel">
+          <div class="roster-head"><h2>Fairness</h2><span class="label">this session</span></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Player</th><th class="r">Played</th><th class="r">Sat out</th><th class="r">Partners</th></tr></thead>
+              <tbody id="fair"></tbody>
+            </table>
+          </div>
+          <p class="help">Partners counts the different people each player has teamed with. Late arrivals are credited with the fewest games anyone present has played, so they slot into the rotation without skipping the line.</p>
+        </div>
+        <div class="panel">
+          <div class="roster-head"><h2>History</h2><button class="btn quiet" type="button" id="reset">New session</button></div>
+          <ul class="history" id="history"></ul>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<!-- Load order matters: each file uses things defined in the ones above it. -->
+<script src="js/config.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/state.js"></script>
+<script src="js/ratings.js"></script>
+<script src="js/rotation.js"></script>
+<script src="js/render.js"></script>
+<script src="js/events.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
