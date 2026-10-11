@@ -17,12 +17,41 @@
     h1 { font-size: 2.25rem; margin: 0 0 4px; }
     .sub { color: #555; margin: 0 0 24px; }
     a { color: #1a4fa0; }
+
+    h2 { font-size: 1.25rem; margin: 40px 0 12px; }
+    .project {
+      border: 1px solid #d8dde3;
+      border-radius: 10px;
+      padding: 20px;
+      margin: 0 0 32px;
+    }
+    .project h3 { font-size: 1.1rem; margin: 0 0 6px; }
+    .project p { margin: 0 0 16px; color: #333; }
+    .button {
+      display: inline-block;
+      padding: 10px 18px;
+      background: #1a4fa0;
+      color: #fff;
+      font-weight: 600;
+      text-decoration: none;
+      border-radius: 8px;
+    }
+    .button:hover { background: #153f80; }
+    .button:focus-visible { outline: 3px solid #1a4fa0; outline-offset: 3px; }
   </style>
 </head>
 <body>
   <h1>Rohan Namdhari</h1>
   <p class="sub">Electrical and Computer Engineering at Santa Clara University</p>
   <p>I'm an engineering student interested in building hardware and software that works. More to come soon.</p>
+
+  <h2>Projects</h2>
+  <section class="project">
+    <h3>Open Play Rotation Maker</h3>
+    <p>A web app for running club open play. Check players in, enter their ratings, and press Next round: it builds balanced teams for each court, keeps sit-outs even, and keeps partners changing. Works for pickleball, tennis, and badminton, in doubles or singles.</p>
+    <a class="button" href="/open-play-rotation-maker/">Try the rotation maker</a>
+  </section>
+
   <p>Contact: <a href="mailto:rohannamdhari@gmail.com">rohannamdhari@gmail.com</a></p>
 </body>
 </html>
