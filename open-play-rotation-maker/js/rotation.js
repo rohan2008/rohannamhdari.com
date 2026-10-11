@@ -45,7 +45,8 @@ function nextRound(silent) {
   const sitters = order.slice(0, nSit), active = order.slice(nSit);
 
   const best = bestCourts(active.map(p => p.id), nCourts, per, st, skillMap(here));
-  S.rounds.push({ courts: best, sitting: sitters.map(p => p.id), shown: [] });
+  // Face-down until revealed, unless the organizer turned that off.
+  S.rounds.push({ courts: best, sitting: sitters.map(p => p.id), shown: S.hideCourts === false ? best.map((c, i) => i) : [] });
   save(); render();
 }
 

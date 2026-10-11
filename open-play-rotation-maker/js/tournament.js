@@ -77,7 +77,7 @@ const teamColor = i => TEAM_COLORS[i % TEAM_COLORS.length];
 const customName = members => members.length > 1 ? ((S.teamNames || {})[teamKey(members)] || '').trim() : '';
 
 function entrantRating(members) {
-  const v = members.map(id => parseFloat(playerOf(id).rating)).filter(isFinite);
+  const v = members.map(id => duprOf(playerOf(id))).filter(r => r !== null);
   return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;
 }
 
@@ -127,6 +127,13 @@ function startTourney() {
   }
   S.tourney = T;
   save(); render();
+}
+
+// Undo the seeding: back to pool play with its scores unlocked. The bracket and its scores are deleted.
+function reopenPool() {
+  const T = currentTourney(); if (!T || !T.rr) return;
+  T.bracket = null; T.stage = 'pool';
+  save(); render(); toast('Pool play reopened. Seed the bracket again when the scores are right.');
 }
 
 function endTourney() { S.tourney = null; save(); render(); toast('Tournament ended.'); }

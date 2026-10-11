@@ -1,17 +1,21 @@
 // Session state (S), saving to the browser, and adding players.
 
+let loadNotice = ''; // one-time message for the first screen, set by load()
 let S = load();
 
 function fresh() {
-  return { sport: 'pickleball', format: 'doubles', courts: 2, grouping: 'balanced', players: [], names: {}, rounds: [], example: false,
-           mode: 'open', tourney: null, bracketSize: null, draftTeams: null, teamMode: 'random', pickedTeams: [], teamNames: {} };
+  return { format: 'doubles', courts: 2, grouping: 'balanced', players: [], names: {}, rounds: [], example: false,
+           mode: 'open', tourney: null, bracketSize: null, draftTeams: null, teamMode: 'random', pickedTeams: [], teamNames: {},
+           hideCourts: true, timerMin: 0, timerEnd: null };
 }
 function save() { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(S)); } catch (e) {} }
 function load() {
   try {
     const s = JSON.parse(localStorage.getItem(STORAGE_KEY));
     if (!s || !Array.isArray(s.players)) return null;
-    if (!SPORTS[s.sport]) s.sport = 'pickleball'; // e.g. a session saved back when badminton was an option
+    // Sessions saved when tennis was an option: ratings stay as typed, but they may be UTR numbers.
+    if (s.sport === 'tennis') loadNotice = 'Tennis was removed. Check your players’ ratings are DUPR.';
+    delete s.sport;
     if (!MODE_NAMES[s.mode]) s.mode = 'open';
     return s;
   }
