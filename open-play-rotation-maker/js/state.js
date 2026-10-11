@@ -3,11 +3,18 @@
 let S = load();
 
 function fresh() {
-  return { sport: 'pickleball', format: 'doubles', courts: 2, grouping: 'balanced', players: [], names: {}, rounds: [], example: false };
+  return { sport: 'pickleball', format: 'doubles', courts: 2, grouping: 'balanced', players: [], names: {}, rounds: [], example: false,
+           mode: 'open', tourney: null, bracketSize: null, draftTeams: null, teamMode: 'random', pickedTeams: [], teamNames: {} };
 }
 function save() { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(S)); } catch (e) {} }
 function load() {
-  try { const s = JSON.parse(localStorage.getItem(STORAGE_KEY)); return s && Array.isArray(s.players) ? s : null; }
+  try {
+    const s = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    if (!s || !Array.isArray(s.players)) return null;
+    if (!SPORTS[s.sport]) s.sport = 'pickleball'; // e.g. a session saved back when badminton was an option
+    if (!MODE_NAMES[s.mode]) s.mode = 'open';
+    return s;
+  }
   catch (e) { return null; }
 }
 

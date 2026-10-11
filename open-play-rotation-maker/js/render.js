@@ -37,38 +37,83 @@ function balance(teams, sk) {
 }
 
 function teamAvgLabel(T) {
-  if (S.sport === 'badminton') return '';
   const v = T.map(id => parseFloat(playerOf(id).rating)).filter(isFinite);
   return v.length ? 'avg ' + (v.reduce((a, b) => a + b, 0) / v.length).toFixed(2) : '';
 }
 
+// Courts start face-down each round. Older saved rounds have no `shown` list and count as revealed.
+const isShown = (r, i) => !r.shown || r.shown.includes(i);
+
+function updateRevealButton() {
+  const r = S.rounds[S.rounds.length - 1];
+  const b = $('reveal');
+  b.disabled = !r || !r.courts.length;
+  const allShown = !r || r.courts.every((c, i) => isShown(r, i));
+  b.textContent = allShown ? 'Hide courts' : 'Reveal courts';
+  $('revealBar').hidden = allShown;
+}
+
+// What was on screen last time, so only new courts (or a new round) animate in.
+let shownBoard = { round: -1, courts: 0 };
+
+// One court card per court in use: filled courts from the current round, open ones for courts not yet in play.
 function renderBoard() {
   const r = S.rounds[S.rounds.length - 1];
   $('roundNo').textContent = S.rounds.length || '–';
   $('undo').disabled = !S.rounds.length;
   $('copy').disabled = !S.rounds.length;
-  if (!r) {
-    $('courts').innerHTML = `<div class="empty">Check in your players, then press <strong>Next round</strong> to put people on court.</div>`;
-    $('sitting').innerHTML = '';
-    return;
-  }
-  const removed = r.courts.flatMap(c => c.teams.flat()).filter(id => !S.players.some(p => p.id === id)).map(playerOf);
+
+  const played = r ? r.courts : [];
+  const removed = played.flatMap(c => c.teams.flat()).filter(id => !S.players.some(p => p.id === id)).map(playerOf);
   const sk = skillMap(S.players.concat(removed));
+  const per = S.format === 'doubles' ? 4 : 2;
+  const hereCount = S.players.filter(p => p.here && p.name.trim()).length;
+  const waiting = r ? r.sitting.filter(id => S.players.some(p => p.id === id && p.here)).length : 0;
+
   const ply = id => {
     const p = playerOf(id);
     return `<div class="player"><strong>${esc(p.name)}</strong><small class="num">${esc(fmtRating(p))}</small></div>`;
   };
-  $('courts').innerHTML = r.courts.map((c, i) => {
+  const courtShape = (inner, singles) =>
+    `<div class="court" data-sport="${S.sport}"><div class="court-in${singles ? ' singles' : ''}">${inner}</div></div>`;
+
+  const newRound = S.rounds.length !== shownBoard.round;
+  const anim = (i, filledNow) => newRound ? ` new" style="animation-delay:${i * 60}ms` : (i >= shownBoard.courts || (filledNow && i >= shownBoard.filled)) ? ' new' : '';
+
+  const filled = played.map((c, i) => {
     const [cls, txt] = balance(c.teams, sk);
-    return `<article class="court-card" style="animation-delay:${i * 60}ms">
-      <div class="court-top"><h3>Court ${i + 1}</h3><span class="pill ${cls}">${txt}</span></div>
-      <div class="court" data-sport="${S.sport}"><div class="court-in">
-        <div class="side a">${c.teams[0].map(ply).join('')}</div>
-        <div class="side b">${c.teams[1].map(ply).join('')}</div>
-      </div></div>
+    const closing = i >= S.courts;
+    return `<article class="court-card${closing ? ' closing' : ''}${anim(i, true)}">
+      <div class="court-top"><h3>Court ${i + 1}</h3>${closing ? '<span class="pill closing">Last game</span>' : `<span class="pill ${cls}">${txt}</span>`}</div>
+      <div class="flip${isShown(r, i) ? ' up' : ''}" data-court="${i}" role="button" tabindex="0" aria-label="Court ${i + 1}: show or hide players">
+        <div class="face front">${courtShape(`<div class="side a">${c.teams[0].map(ply).join('')}</div><div class="side b">${c.teams[1].map(ply).join('')}</div>`, c.teams[0].length === 1)}</div>
+        <div class="face back">${courtShape('<div class="side a"></div><div class="side b"></div>', c.teams[0].length === 1)}<span class="open-label">Tap to reveal</span></div>
+      </div>
       <div class="court-foot num"><span>${teamAvgLabel(c.teams[0])}</span><span>${teamAvgLabel(c.teams[1])}</span></div>
     </article>`;
-  }).join('');
+  });
+
+  const open = [];
+  for (let i = played.length; i < S.courts; i++) {
+    const short = (i + 1) * per - hereCount;
+    let foot;
+    if (!r) foot = short > 0 ? `Needs ${short} more player${short > 1 ? 's' : ''}` : 'Ready for round 1';
+    else if (i === played.length && waiting >= per) foot = `<button class="btn primary" type="button" data-fill>Put ${per} sitting players on</button>`;
+    else foot = short > 0 ? `Needs ${short} more player${short > 1 ? 's' : ''}` : 'Fills next round';
+    open.push(`<article class="court-card open${anim(i, false)}">
+      <div class="court-top"><h3>Court ${i + 1}</h3><span class="pill closing">Open</span></div>
+      <div class="court-wrap">${courtShape('<div class="side a"></div><div class="side b"></div>', per === 2)}<span class="open-label">Open court</span></div>
+      <div class="court-foot">${foot}</div>
+    </article>`);
+  }
+  $('courts').innerHTML = filled.concat(open).join('');
+  updateRevealButton();
+  shownBoard = { round: S.rounds.length, courts: Math.max(S.courts, played.length), filled: played.length };
+
+  if (!r) {
+    $('sitting').innerHTML = `<span class="help">Check in your players, then press <strong>Next round</strong> to put people on court.</span>`;
+    return;
+  }
   $('sitting').innerHTML = r.sitting.length
     ? `<span class="label">Sitting out</span>` + r.sitting.map(id => `<span class="chip">${esc(nameOf(id))}</span>`).join('')
     : `<span class="label">Nobody sits this round</span>`;
@@ -102,6 +147,6 @@ function renderHistory() {
   }).reverse().join('') || `<li class="help">Rounds you play will be listed here.</li>`;
 }
 
-function render() { renderSettings(); renderRoster(); renderBoard(); renderFairness(); renderHistory(); }
+function render() { renderMode(); renderSettings(); renderRoster(); renderBoard(); renderFairness(); renderHistory(); renderTourney(); }
 // Everything except the roster, so typing in a name box doesn't lose focus.
-function renderLive() { renderCount(); renderBoard(); renderFairness(); renderHistory(); }
+function renderLive() { renderCount(); renderBoard(); renderFairness(); renderHistory(); renderTourney(); }
