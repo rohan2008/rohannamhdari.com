@@ -21,15 +21,20 @@
     <button class="btn" id="clearExamples" type="button">Clear examples</button>
   </div>
 
+  <nav class="modes" role="radiogroup" aria-label="What are you running?">
+    <label><input type="radio" name="mode" id="md-open" value="open"><span>Open play</span></label>
+    <label><input type="radio" name="mode" id="md-rr" value="rr"><span>Round robin</span></label>
+    <label><input type="radio" name="mode" id="md-bracket" value="bracket"><span>Bracket</span></label>
+    <label><input type="radio" name="mode" id="md-combo" value="combo"><span>Round robin + bracket</span></label>
+  </nav>
+
   <div class="grid">
     <aside class="panel" aria-label="Session setup">
       <div class="field">
         <span class="label" id="sportLbl">Sport</span>
         <div class="seg" role="radiogroup" aria-labelledby="sportLbl">
           <label><input type="radio" name="sport" id="sp-pickleball" value="pickleball"><span>Pickleball</span></label>
-          <label><input type="radio" name="sport" id="sp-tennis" value="tennis"><span>Tennis</span></label>
-          <label><input type="radio" name="sport" id="sp-badminton" value="badminton"><span>Badminton</span></label>
-        </div>
+          <label><input type="radio" name="sport" id="sp-tennis" value="tennis"><span>Tennis</span></label>        </div>
       </div>
 
       <div class="row2">
@@ -50,7 +55,7 @@
         </div>
       </div>
 
-      <div class="field">
+      <div class="field" id="grpField">
         <span class="label" id="grpLbl">Who plays together</span>
         <div class="seg" role="radiogroup" aria-labelledby="grpLbl">
           <label><input type="radio" name="grouping" id="gp-balanced" value="balanced"><span>Mix levels</span></label>
@@ -83,15 +88,19 @@
     </aside>
 
     <section class="main">
+      <div id="tourney" class="stack" hidden></div>
+      <div id="openPlay" class="stack">
       <div class="board">
         <div class="board-head">
           <div class="round-no"><span class="label">Round</span><b class="num" id="roundNo">–</b></div>
           <div class="actions">
             <button class="btn quiet" type="button" id="undo">Undo round</button>
             <button class="btn" type="button" id="copy">Copy for group chat</button>
+            <button class="btn" type="button" id="reveal">Reveal courts</button>
             <button class="btn primary" type="button" id="next">Next round</button>
           </div>
         </div>
+        <button class="reveal-bar" type="button" id="revealBar" hidden>Reveal who plays on each court</button>
         <div id="courts" class="courts"></div>
         <div class="sitting" id="sitting"></div>
       </div>
@@ -112,6 +121,7 @@
           <ul class="history" id="history"></ul>
         </div>
       </div>
+      </div>
     </section>
   </div>
 </div>
@@ -123,7 +133,9 @@
 <script src="js/state.js"></script>
 <script src="js/ratings.js"></script>
 <script src="js/rotation.js"></script>
+<script src="js/tournament.js"></script>
 <script src="js/render.js"></script>
+<script src="js/tournament-render.js"></script>
 <script src="js/events.js"></script>
 <script src="js/main.js"></script>
 </body>
