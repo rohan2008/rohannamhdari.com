@@ -7,3 +7,4 @@ if (!S) {
   nextRound(true); // round 1 starts face-down so the Reveal bar is the first thing people see
 }
 render();
+if (loadNotice) { toast(loadNotice); save(); }

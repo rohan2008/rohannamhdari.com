@@ -2,10 +2,15 @@
 
 function renderMode() {
   $('md-' + S.mode).checked = true;
+  $('kicker').textContent = 'Pickleball ' + MODE_NAMES[S.mode].toLowerCase();
   $('openPlay').hidden = S.mode !== 'open';
   $('tourney').hidden = S.mode === 'open';
-  $('grpField').hidden = S.mode !== 'open';
+  $('openOpts').hidden = S.mode !== 'open';
+  $('tNote').hidden = !currentTourney();
 }
+
+// Finished pool rounds fold shut; these are the ones the organizer has opened (not saved).
+const openRounds = new Set();
 
 function renderTourney() {
   if (S.mode === 'open') return;
@@ -127,21 +132,26 @@ const tag = (e, withSub) => `<span class="tteam" style="--tc:${e.color || '#7080
 
 function tourneyHTML(T) {
   const E = {}; T.entrants.forEach(e => E[e.id] = e);
-  let title, champ = '';
+  let title, status, champ = '';
   const rounds = T.bracket ? bracketRounds(T.bracket) : null;
   if (rounds) {
+    title = 'Bracket';
     const final = rounds[rounds.length - 1].matches[0];
-    if (final.winner) { title = 'Final result'; champ = `<div class="champ"><span class="label">Champion${E[final.winner].members.length > 1 ? 's' : ''}</span><b>${tag(E[final.winner], true)}</b></div>`; }
-    else title = (rounds.find(r => r.matches.some(m => !m.winner)) || rounds[0]).name + ' in progress';
+    if (final.winner) { status = 'Final result'; champ = `<div class="champ"><span class="label">Champion${E[final.winner].members.length > 1 ? 's' : ''}</span><b>${tag(E[final.winner], true)}</b></div>`; }
+    else status = (rounds.find(r => r.matches.some(m => !m.winner)) || rounds[0]).name + ' in progress';
   } else {
     const p = rrProgress(T);
-    title = p.done === p.total ? 'Final standings' : 'Pool play';
+    title = T.kind === 'rr' ? 'Round robin' : 'Pool play';
+    status = p.done === p.total ? 'All matches scored' : `${p.done} of ${p.total} matches scored`;
   }
 
   return `<div class="board">
     <div class="board-head">
-      <div><span class="label">${MODE_NAMES[T.kind]}</span><h2 class="t-title">${title}</h2></div>
-      <div class="actions"><button class="btn quiet" type="button" id="endT">End tournament</button></div>
+      <div>${MODE_NAMES[T.kind] !== title ? `<span class="label">${MODE_NAMES[T.kind]}</span>` : ''}<h2 class="t-title">${title}</h2><p class="t-status">${status}</p></div>
+      <div class="minor">
+        <button class="btn" type="button" id="copyResults">Copy results</button>
+        <button class="btn quiet" type="button" id="endT">End tournament</button>
+      </div>
     </div>
     ${scoreRuleHTML()}
     ${champ}
@@ -166,23 +176,28 @@ function poolHTML(T, E) {
   const table = `<div class="table-wrap"><table class="standings">
     <thead><tr><th class="r">#</th><th>${T.entrants[0].members.length > 1 ? 'Team' : 'Player'}</th><th class="r">W</th><th class="r">L</th><th class="r">+/−</th></tr></thead>
     <tbody>${rows.map((r, i) => `<tr class="${i < qualify ? 'q' : ''}">
-      <td class="r num">${i + 1}</td><td>${tag(r.e, true)}${i < qualify ? ' <span class="qtag">Qualifies</span>' : ''}</td>
+      <td class="r num">${p.done ? i + 1 : '–'}</td><td>${tag(r.e, true)}${i < qualify ? ' <span class="qtag">Qualifies</span>' : ''}</td>
       <td class="r num">${r.w}</td><td class="r num">${r.l}</td><td class="r num">${r.pf - r.pa > 0 ? '+' : ''}${r.pf - r.pa}</td></tr>`).join('')}</tbody>
   </table></div>`;
 
   const catchUp = T.rr.catchUp || {};
+  const finished = r => T.rr.rounds[r].every(([a, b], m) => winnerOf(a, b, T.rr.scores[`${r}-${m}`]));
+  const upNext = T.rr.rounds.findIndex((rd, r) => !finished(r));
   const roundsHTML = T.rr.rounds.map((round, r) => {
     const late = catchUp[r];
     const playing = new Set(round.flat());
     const bye = late ? [] : T.entrants.filter(e => !playing.has(e.id) && !e.late);
-    return `<div class="rr-round"><h3>${late ? `Catch-up: ${esc(E[late].name)}` : `Round ${r + 1}`}</h3>
-      ${round.map(([a, b], m) => matchRow(T, 'rr', `${r}-${m}`, a, b, T.rr.scores[`${r}-${m}`], late ? `Game ${m + 1}` : courtLabel(m), locked, E)).join('')}
-      ${bye.length ? `<p class="help">Sits out: ${bye.map(e => esc(e.name)).join(', ')}</p>` : ''}
-    </div>`;
+    const heading = late ? `Catch-up: ${esc(E[late].name)}` : `Round ${r + 1}`;
+    const body = `${round.map(([a, b], m) => matchRow(T, 'rr', `${r}-${m}`, a, b, T.rr.scores[`${r}-${m}`], late ? `Game ${m + 1}` : courtLabel(m), locked, E)).join('')}
+      ${bye.length ? `<p class="help">Sits out: ${bye.map(e => esc(e.name)).join(', ')}</p>` : ''}`;
+    if (finished(r)) return `<details class="rr-round done" data-r="${r}" ${openRounds.has(r) ? 'open' : ''}>
+      <summary><h3>${heading}</h3><span class="rtag">Done</span></summary>${body}</details>`;
+    return `<div class="rr-round${r === upNext ? ' next' : ''}" data-r="${r}"><h3>${heading}${r === upNext ? ' <span class="rtag up">Up next</span>' : ''}</h3>${body}</div>`;
   }).join('');
 
   return `<section class="pool">
-    <div class="roster-head"><h2>${T.kind === 'combo' ? 'Pool play' : 'Standings'}</h2><span class="label num">${p.done}/${p.total} scored</span></div>
+    <div class="roster-head"><h2>${T.kind === 'combo' ? 'Pool play' : 'Standings'}</h2>
+      ${locked ? '<button class="btn quiet" type="button" id="reopenPool">Reopen pool play</button>' : `<span class="label num">${p.done}/${p.total} scored</span>`}</div>
     ${seedBox}${table}
     <div class="rr-rounds">${roundsHTML}</div>
     ${locked ? '' : lateEntryHTML(T)}
@@ -201,9 +216,9 @@ function matchRow(T, stage, key, a, b, sc, courtTag, locked, E) {
     data-stage="${stage}" data-key="${key}" data-side="${side}" value="${sc && sc[side] != null ? sc[side] : ''}" aria-label="${esc((side ? E[b] : E[a]).name)} score" ${locked ? 'disabled' : ''}>`;
   return `<div class="mrow${w ? ' done' : ''}">
     <span class="mtag">${courtTag}</span>
-    <span class="mname a${w === a ? ' win' : ''}">${tag(E[a])}</span>
+    <span class="mname a${w === a ? ' win' : w ? ' lose' : ''}">${tag(E[a])}</span>
     ${inp(0)}<span class="dash">–</span>${inp(1)}
-    <span class="mname b${w === b ? ' win' : ''}">${tag(E[b])}</span>
+    <span class="mname b${w === b ? ' win' : w ? ' lose' : ''}">${tag(E[b])}</span>
     ${scoreWarning(sc)}
   </div>`;
 }
@@ -221,7 +236,7 @@ function bracketHTML(T, rounds, E) {
     const input = m.a && m.b && !m.bye
       ? `<input type="number" min="0" inputmode="numeric" class="score num" id="sc-br-${m.key}-${side}" data-stage="br" data-key="${m.key}" data-side="${side}" value="${score != null ? score : ''}" aria-label="${name} score">`
       : '';
-    return `<div class="slot${m.winner && m.winner === id ? ' win' : ''}${id ? '' : ' tbd'}"${id ? ` style="--tc:${E[id].color || '#708090'}"` : ''}><span class="seed num">${seed || ''}</span><span class="nm">${label}</span>${input}</div>`;
+    return `<div class="slot${m.winner && m.winner === id ? ' win' : ''}${m.winner && id && m.winner !== id ? ' lose' : ''}${id ? '' : ' tbd'}"${id ? ` style="--tc:${E[id].color || '#708090'}"` : ''}><span class="seed num">${seed || ''}</span><span class="nm">${label}</span>${input}</div>`;
   };
 
   return `<section class="bracket-wrap"><div class="bracket">${rounds.map(r => `
@@ -246,9 +261,9 @@ function scoreRuleHTML() {
   const r = S.scoreRule || { on: false, to: 11 };
   return `<div class="rule">
     <label><input type="checkbox" id="ruleOn" ${r.on ? 'checked' : ''}> Check scores: game to</label>
-    <input type="number" id="ruleTo" class="score num" min="1" value="${r.to}" aria-label="Points needed to win">
+    <select id="ruleTo" aria-label="Game length">${GAME_LENGTHS.map(n => `<option value="${n}" ${n === r.to ? 'selected' : ''}>${n}</option>`).join('')}</select>
     <span>, win by 2</span>
-    <span class="help">Catches typos like 11–10. Leave it off for tennis sets.</span>
+    <span class="help">Catches typos like 11–10 before they count.</span>
   </div>`;
 }
 
@@ -268,4 +283,28 @@ function lateEntryHTML(T) {
       </div>
       <p class="help">They’ll get one catch-up match against every ${doubles ? 'team' : 'player'}.</p>`;
   return `<div class="late"><span class="label">Late arrivals</span>${body}</div>`;
+}
+
+// Standings and bracket as plain text for the group chat.
+function resultsText(T) {
+  const E = {}; T.entrants.forEach(e => E[e.id] = e);
+  const lines = [MODE_NAMES[T.kind]];
+  if (T.rr) {
+    const p = rrProgress(T);
+    lines.push('', `Standings (${p.done} of ${p.total} matches scored)`);
+    standings(T).forEach((r, i) => lines.push(`${p.done ? i + 1 : '–'}. ${r.e.name}  ${r.w}-${r.l}  (${r.pf - r.pa > 0 ? '+' : ''}${r.pf - r.pa})`));
+  }
+  if (T.bracket) {
+    bracketRounds(T.bracket).forEach(rd => {
+      lines.push('', rd.name);
+      rd.matches.forEach(m => {
+        if (m.bye) lines.push(`${E[m.winner].name}: bye`);
+        else if (!m.a || !m.b) lines.push('To be decided');
+        else lines.push(`${E[m.a].name} ${m.sa ?? '–'} – ${m.sb ?? '–'} ${E[m.b].name}${m.winner ? '' : ' (not played yet)'}`);
+      });
+    });
+    const final = bracketRounds(T.bracket).pop().matches[0];
+    if (final.winner) lines.push('', `Champion: ${E[final.winner].name}`);
+  }
+  return lines.join('\n');
 }

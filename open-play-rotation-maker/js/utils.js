@@ -20,5 +20,5 @@ function toast(msg, action) {
   }
   t.hidden = false;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.hidden = true, action ? 6000 : 2600);
+  toastTimer = setTimeout(() => t.hidden = true, action ? 5000 : 2600);
 }

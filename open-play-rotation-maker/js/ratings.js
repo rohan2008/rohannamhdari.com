@@ -1,11 +1,24 @@
-// Turns DUPR / UTR into one 0–1 skill scale so the rotation can compare players.
+// DUPR (2.00–8.00): checking what was typed, and turning it into a 0–1 skill scale so the rotation can compare players.
+
+// What's wrong with a typed rating, or '' if it's fine. Blank is fine: the player is treated as mid-pack.
+function ratingError(raw) {
+  const v = String(raw ?? '').trim();
+  if (!v) return '';
+  const r = Number(v);
+  if (!isFinite(r)) return 'Not a number. Type a DUPR like 3.75.';
+  if (r < 2 || r > 8) return 'DUPR runs 2.00 to 8.00.';
+  return '';
+}
+
+// The player's DUPR as a number, or null when it's blank or not valid (never clamped).
+function duprOf(p) {
+  const v = String(p.rating ?? '').trim();
+  return v && !ratingError(v) ? Number(v) : null;
+}
 
 function rawSkill(p) {
-  const r = parseFloat(p.rating);
-  if (!isFinite(r)) return null;
-  const clamp = v => Math.max(0, Math.min(1, v));
-  if (S.sport === 'tennis') return clamp((r - 1) / 15.5);
-  return clamp((r - 2) / 6); // pickleball DUPR
+  const r = duprOf(p);
+  return r === null ? null : (r - 2) / 6;
 }
 
 // Skill for every player in the list; unrated players get the group's median.
@@ -18,7 +31,6 @@ function skillMap(list) {
 }
 
 function fmtRating(p) {
-  const r = parseFloat(p.rating);
-  if (!isFinite(r)) return 'No rating';
-  return (S.sport === 'tennis' ? 'UTR ' : 'DUPR ') + r.toFixed(2);
+  const r = duprOf(p);
+  return r === null ? 'No rating' : 'DUPR ' + r.toFixed(2);
 }
