@@ -44,7 +44,34 @@ function nextRound(silent) {
   const nSit = here.length - nCourts * per;
   const sitters = order.slice(0, nSit), active = order.slice(nSit);
 
-  const sk = skillMap(here);
+  const best = bestCourts(active.map(p => p.id), nCourts, per, st, skillMap(here));
+  S.rounds.push({ courts: best, sitting: sitters.map(p => p.id), shown: [] });
+  save(); render();
+}
+
+// A court was added mid-round: move players who are sitting out onto it, fewest games first.
+function fillCourt() {
+  const r = S.rounds[S.rounds.length - 1]; if (!r) return;
+  const per = S.format === 'doubles' ? 4 : 2;
+  const waiting = S.players.filter(p => p.here && r.sitting.includes(p.id));
+  if (waiting.length < per) { toast(`Not enough players sitting out to fill a ${S.format} court.`); return; }
+
+  const st = stats();
+  const eff = p => (st.games[p.id] || 0) + (p.offset || 0);
+  const chosen = shuffle(waiting).sort((a, b) => eff(a) - eff(b)).slice(0, per);
+  const ids = chosen.map(p => p.id);
+
+  // A new court matches the others: face-up if every court is already revealed, otherwise face-down.
+  const allShown = r.shown && r.courts.every((c, i) => r.shown.includes(i));
+  r.courts.push(...bestCourts(ids, 1, per, st, skillMap(S.players.filter(p => p.here))));
+  if (allShown) r.shown.push(r.courts.length - 1);
+  r.sitting = r.sitting.filter(id => !ids.includes(id));
+  save(); render();
+  toast(`Court ${r.courts.length} is on: ${chosen.map(p => p.name).join(', ')}.`);
+}
+
+// Tries many random lineups for the given players and returns the fairest set of courts.
+function bestCourts(playerIds, nCourts, per, st, sk) {
   const avg = T => T.reduce((s, id) => s + sk[id], 0) / T.length;
   // Lower is better: uneven teams, repeat partners and repeat opponents all add cost.
   const pairCost = (A, B) => {
@@ -55,10 +82,9 @@ function nextRound(silent) {
   };
   const splits = [[[0, 1], [2, 3]], [[0, 2], [1, 3]], [[0, 3], [1, 2]]];
 
-  // Try many random lineups and keep the cheapest.
   let best = null, bestCost = Infinity;
   for (let it = 0; it < 900; it++) {
-    const ids = shuffle(active.map(p => p.id));
+    const ids = shuffle(playerIds.slice());
     if (S.grouping === 'level') {
       const j = {}; ids.forEach(id => j[id] = sk[id] + Math.random() * 0.07);
       ids.sort((a, b) => j[b] - j[a]);
@@ -78,7 +104,5 @@ function nextRound(silent) {
     }
     if (cost < bestCost) { bestCost = cost; best = courts; }
   }
-
-  S.rounds.push({ courts: best, sitting: sitters.map(p => p.id) });
-  save(); render();
+  return best;
 }

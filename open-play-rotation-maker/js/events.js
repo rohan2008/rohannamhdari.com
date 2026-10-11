@@ -4,8 +4,8 @@
 document.querySelectorAll('input[name=sport]').forEach(el => el.addEventListener('change', () => { S.sport = el.value; save(); render(); }));
 document.querySelectorAll('input[name=format]').forEach(el => el.addEventListener('change', () => { S.format = el.value; save(); render(); }));
 document.querySelectorAll('input[name=grouping]').forEach(el => el.addEventListener('change', () => { S.grouping = el.value; save(); renderSettings(); }));
-$('courtsDown').onclick = () => { S.courts = Math.max(1, S.courts - 1); save(); renderSettings(); };
-$('courtsUp').onclick = () => { S.courts = Math.min(30, S.courts + 1); save(); renderSettings(); };
+$('courtsDown').onclick = () => { S.courts = Math.max(1, S.courts - 1); save(); renderSettings(); renderBoard(); renderTourney(); };
+$('courtsUp').onclick = () => { S.courts = Math.min(30, S.courts + 1); save(); renderSettings(); renderBoard(); renderTourney(); };
 
 // ---------- roster ----------
 $('roster').addEventListener('input', e => {
@@ -30,9 +30,10 @@ $('roster').addEventListener('change', e => {
 $('roster').addEventListener('click', e => {
   if (!e.target.classList.contains('x')) return;
   const id = e.target.closest('li').dataset.id;
-  const p = S.players.find(x => x.id === id);
-  S.players = S.players.filter(x => x.id !== id);
-  save(); render(); toast(`Removed ${p.name}.`);
+  const at = S.players.findIndex(x => x.id === id);
+  const [p] = S.players.splice(at, 1);
+  save(); render();
+  toast(`Removed ${p.name}.`, { label: 'Undo', fn: () => { S.players.splice(at, 0, p); save(); render(); toast(`${p.name} is back.`); } });
 });
 
 $('addForm').addEventListener('submit', e => {
@@ -48,7 +49,7 @@ $('bulkAdd').onclick = () => {
   const lines = $('bulk').value.split('\n').map(l => l.trim()).filter(Boolean);
   if (!lines.length) { toast('Paste one player per line, like "Maya Chen, 4.21".'); return; }
   lines.forEach(l => {
-    const m = l.match(/^(.*?)[,\t;]\s*(#?[\d.]+)?\s*$/);
+    const m = l.match(/^(.*?)[,\t;]\s*([\d.]+)?\s*$/);
     m ? addPlayer(m[1], m[2] || '') : addPlayer(l, '');
   });
   $('bulk').value = '';
@@ -56,13 +57,45 @@ $('bulkAdd').onclick = () => {
 };
 
 $('clearExamples').onclick = () => {
-  const keep = { sport: S.sport, format: S.format, courts: S.courts, grouping: S.grouping };
+  const keep = { sport: S.sport, format: S.format, courts: S.courts, grouping: S.grouping, mode: S.mode };
   S = Object.assign(fresh(), keep);
   save(); render(); $('addName').focus();
 };
 
 // ---------- rounds ----------
 $('next').onclick = () => nextRound(false);
+$('courts').addEventListener('click', e => {
+  if (e.target.closest('[data-fill]')) return fillCourt();
+  const f = e.target.closest('.flip'); if (f) flipCourt(f);
+});
+$('courts').addEventListener('keydown', e => {
+  const f = e.target.closest('.flip');
+  if (f && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); flipCourt(f); }
+});
+
+// Flip one court. Classes are toggled in place (no re-render) so the flip animates.
+function flipCourt(el) {
+  const r = S.rounds[S.rounds.length - 1]; if (!r) return;
+  const i = +el.dataset.court;
+  if (!r.shown) r.shown = r.courts.map((c, k) => k);
+  r.shown = r.shown.includes(i) ? r.shown.filter(k => k !== i) : r.shown.concat(i);
+  el.style.removeProperty('--d');
+  el.classList.toggle('up', r.shown.includes(i));
+  save(); updateRevealButton();
+}
+
+// Flip every court at once, one after another. The big bar only shows while courts are face-down.
+$('revealBar').onclick = () => $('reveal').click();
+$('reveal').onclick = () => {
+  const r = S.rounds[S.rounds.length - 1]; if (!r) return;
+  const show = !r.courts.every((c, i) => isShown(r, i));
+  r.shown = show ? r.courts.map((c, i) => i) : [];
+  document.querySelectorAll('#courts .flip').forEach((el, k) => {
+    el.style.setProperty('--d', `${k * 140}ms`);
+    el.classList.toggle('up', show);
+  });
+  save(); updateRevealButton();
+};
 $('undo').onclick = () => { if (!S.rounds.length) return; S.rounds.pop(); save(); render(); toast('Last round removed.'); };
 
 $('reset').onclick = () => {
@@ -87,3 +120,64 @@ $('copy').onclick = async () => {
     toast('Your browser blocked copying. The round is listed under History to copy by hand.');
   }
 };
+
+// ---------- tournaments ----------
+document.querySelectorAll('input[name=mode]').forEach(el => el.addEventListener('change', () => { S.mode = el.value; save(); render(); }));
+
+$('tourney').addEventListener('click', e => {
+  const t = e.target;
+  if (t.id === 'startT') return startTourney();
+  if (t.id === 'seedB') return seedBracketFromPool();
+  if (t.id === 'repair') { rePairTeams(); save(); renderTourney(); return; }
+  if (t.id === 'addLate') {
+    const a = $('lateA').value, b = $('lateB') && $('lateB').value;
+    if ($('lateB')) {
+      if (a === b) { toast('Pick two different players for the team.'); return; }
+      const name = $('lateName').value.trim();
+      if (name) (S.teamNames ||= {})[teamKey([a, b])] = name;
+      return addLateEntry([a, b]);
+    }
+    return addLateEntry([a]);
+  }
+  const pick = t.closest('[data-pick]'); if (pick) { pickPlayer(pick.dataset.pick); save(); renderTourney(); return; }
+  const split = t.closest('[data-split]'); if (split) { splitTeam(+split.dataset.split); save(); renderTourney(); return; }
+  if (t.id === 'endT') {
+    if (t.dataset.armed) return endTourney();
+    t.dataset.armed = '1'; t.textContent = 'Tap again to end it';
+    setTimeout(() => { if (t.isConnected) { delete t.dataset.armed; t.textContent = 'End tournament'; } }, 3500);
+  }
+});
+
+// Team names save as you type; no re-draw, so the box keeps focus.
+$('tourney').addEventListener('input', e => {
+  if (!e.target.classList.contains('tname')) return;
+  (S.teamNames ||= {})[e.target.dataset.key] = e.target.value;
+  save();
+});
+
+$('tourney').addEventListener('change', e => {
+  const t = e.target;
+  if (t.name === 'bsize') { S.bracketSize = +t.value; save(); renderTourney(); return; }
+  if (t.id === 'sitPick') { S.sitOut = t.value; rePairTeams(); save(); renderTourney(); return; }
+  if (t.id === 'ruleOn' || t.id === 'ruleTo') {
+    S.scoreRule = { on: $('ruleOn').checked, to: Math.max(1, Math.round(+$('ruleTo').value) || 11) };
+    save(); renderTourney(); return;
+  }
+  if (t.name === 'teamMode') {
+    S.teamMode = t.value; pickSel = null;
+    if (t.value === 'random') rePairTeams(); // a fresh random draw each time you switch back
+    save(); renderTourney(); return;
+  }
+  if (t.classList.contains('score')) {
+    setScore(t.dataset.stage, t.dataset.key, +t.dataset.side, t.value.trim());
+    // Re-draw after focus has moved (e.g. Tab to the next score box), then put focus back there.
+    setTimeout(() => {
+      const id = document.activeElement && document.activeElement.id;
+      renderTourney();
+      if (id && $(id)) $(id).focus();
+    });
+  }
+});
+
+// Re-pairing changes who's on which team, so forget a custom pairing when the format changes.
+document.querySelectorAll('input[name=format]').forEach(el => el.addEventListener('change', () => { S.draftTeams = null; save(); }));

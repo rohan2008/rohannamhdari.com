@@ -8,9 +8,17 @@ const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.f
 const pairKey = (a, b) => a < b ? a + '|' + b : b + '|' + a;
 
 let toastTimer;
-function toast(msg) {
+// A short message at the bottom. Pass { label, fn } to add a button such as Undo.
+function toast(msg, action) {
   const t = $('toast');
-  t.textContent = msg; t.hidden = false;
+  t.textContent = msg;
+  if (action) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'toast-btn'; b.textContent = action.label;
+    b.onclick = () => { t.hidden = true; action.fn(); };
+    t.append(b);
+  }
+  t.hidden = false;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.hidden = true, 2600);
+  toastTimer = setTimeout(() => t.hidden = true, action ? 6000 : 2600);
 }
