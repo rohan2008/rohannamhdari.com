@@ -106,20 +106,30 @@ details textarea{min-height:110px;resize:vertical}
 .round-no .label{font-size:12px}
 .actions{display:flex;flex-wrap:wrap;gap:8px}
 
-.courts{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
-.court-card{display:flex;flex-direction:column;gap:8px;animation:drop .35s ease-out both}
+.courts{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(300px,100%),1fr));gap:16px}
+.court-card{display:flex;flex-direction:column;gap:8px}
+.court-card.new{animation:drop .35s ease-out both}
 .court-top{display:flex;justify-content:space-between;align-items:center;gap:8px}
 .court-top h3{font-family:var(--display);font-weight:800;font-size:22px;text-transform:uppercase;margin:0;letter-spacing:.04em}
 .pill{font-size:12px;font-weight:700;padding:3px 9px;border-radius:999px;border:1.5px solid currentColor}
-.pill.even{color:var(--good)} .pill.close{color:var(--warn)} .pill.uneven{color:var(--bad)}
+.pill.even{color:var(--good)} .pill.close{color:var(--warn)} .pill.uneven{color:var(--bad)} .pill.closing{color:var(--muted)}
+
+/* open courts (added but not in play yet) and courts finishing their last game */
+.court-wrap{position:relative}
+.court-card.open .court{opacity:.45;filter:saturate(.6)}
+.court-card.closing .court{opacity:.7}
+.open-label{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:3;background:var(--surface);color:var(--ink);font-family:var(--display);font-weight:800;font-size:18px;text-transform:uppercase;letter-spacing:.06em;padding:4px 12px;border-radius:4px;white-space:nowrap}
+.court-card.open .court-foot{justify-content:center;align-items:center;min-height:40px;color:var(--muted);font-size:14px}
 
 /* ---------- court diagram (service line position varies by sport) ---------- */
 .court{background:var(--court-out);padding:12px 16px;border-radius:6px}
 .court-in{--svc:32%;position:relative;background:var(--court);border:2px solid var(--line);display:grid;grid-template-columns:1fr 1fr;min-height:150px}
-.court[data-sport="tennis"] .court-in{--svc:46%}
-.court[data-sport="badminton"] .court-in{--svc:16%}
-.court-in::before{content:"";position:absolute;left:50%;top:-8px;bottom:-8px;width:4px;transform:translateX(-50%);background:var(--line);opacity:.9;z-index:2}
-.side{position:relative;display:flex;flex-direction:column;justify-content:space-around;align-items:center;padding:10px 6px;gap:8px}
+.court[data-sport="tennis"] .court-in{--svc:46%}.court-in::before{content:"";position:absolute;left:50%;top:-8px;bottom:-8px;width:4px;transform:translateX(-50%);background:var(--line);opacity:.9;z-index:2}
+/* each half is split by the center line into two service boxes: one player per box */
+.side{position:relative;display:grid;grid-template-rows:1fr 1fr;place-items:center;padding:10px 6px;gap:8px}
+/* singles: each player starts in their right-hand (deuce) box, so the two servers sit diagonally */
+.court-in.singles .side.a .player{grid-row:2}
+.court-in.singles .side.b .player{grid-row:1}
 .side::before{content:"";position:absolute;top:0;bottom:0;width:2px;background:var(--line)}
 .side::after{content:"";position:absolute;top:50%;height:2px;background:var(--line);transform:translateY(-1px)}
 .side.a::before{right:var(--svc)} .side.a::after{left:0;right:var(--svc)}
@@ -127,6 +137,19 @@ details textarea{min-height:110px;resize:vertical}
 .player{position:relative;z-index:1;background:var(--court);color:#fff;padding:3px 8px;border-radius:4px;text-align:center;max-width:100%}
 .player strong{display:block;font-weight:700;font-size:15px;line-height:1.15;overflow-wrap:anywhere}
 .player small{display:block;font-size:12px;opacity:.85}
+.reveal-bar{width:100%;border:0;border-radius:8px;padding:16px;background:var(--ball);color:var(--ball-ink);font-family:var(--display);font-weight:900;font-size:24px;text-transform:uppercase;letter-spacing:.06em;cursor:pointer}
+.reveal-bar:hover{filter:brightness(.95)}
+
+/* face-down / face-up courts: the two faces share one grid cell and flip top-over-bottom */
+.flip{display:grid;perspective:900px;cursor:pointer;border-radius:6px}
+.flip > .face{grid-area:1/1;position:relative;backface-visibility:hidden;-webkit-backface-visibility:hidden;transition:transform .6s cubic-bezier(.2,.7,.2,1);transition-delay:var(--d,0ms)}
+.flip .front{transform:rotateX(180deg)}
+.flip .back{transform:rotateX(0deg)}
+.flip.up .front{transform:rotateX(0deg)}
+.flip.up .back{transform:rotateX(-180deg)}
+.flip .back .court{filter:saturate(.75)}
+.flip:hover .back .open-label{background:var(--ball);color:var(--ball-ink)}
+
 .court-foot{display:flex;justify-content:space-between;font-size:13px;color:var(--muted)}
 
 .sitting{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
@@ -151,3 +174,118 @@ tr.hi td{color:var(--warn);font-weight:600}
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom, 0px));transform:translateX(-50%);background:var(--ink);color:var(--surface);padding:10px 16px;border-radius:8px;font-weight:600;max-width:calc(100% - 32px);z-index:10;transition:opacity .2s}
 @keyframes drop{from{transform:translateY(-6px);opacity:.3}to{transform:none;opacity:1}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+/* ---------- mode tabs ---------- */
+.stack{display:flex;flex-direction:column;gap:20px}
+.modes{display:flex;flex-wrap:wrap;gap:6px;border-bottom:2px solid var(--rule)}
+.modes label{position:relative}
+.modes input{position:absolute;opacity:0;inset:0;margin:0;cursor:pointer}
+.modes span{display:block;padding:10px 14px;font-family:var(--display);font-weight:800;font-size:19px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:4px solid transparent;margin-bottom:-2px;cursor:pointer}
+.modes span:hover{color:var(--ink)}
+.modes input:checked + span{color:var(--ink);border-bottom-color:var(--court)}
+.modes input:focus-visible + span{outline:3px solid var(--ball);outline-offset:-3px}
+
+/* ---------- tournament setup ---------- */
+.entrants{display:flex;flex-wrap:wrap;gap:8px}
+.entrant{display:flex;gap:8px;align-items:baseline;background:var(--ground);border:1px solid var(--rule);border-radius:6px;padding:6px 10px;font-size:14px}
+.entrant small{color:var(--muted)}
+.note{margin:0;font-size:13px;font-weight:600;color:var(--warn)}
+.t-title{font-size:34px}
+
+/* ---------- champion & seeding ---------- */
+.champ{background:var(--ball);color:var(--ball-ink);border-radius:8px;padding:14px 18px;display:flex;flex-direction:column;gap:2px}
+.champ .label{color:var(--ball-ink);opacity:.75}
+.champ b{font-family:var(--display);font-weight:900;font-size:clamp(28px,5vw,40px);text-transform:uppercase;line-height:1}
+.seedbox{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;border:2px solid var(--court);border-radius:8px;padding:12px 14px}
+.seedbox p{margin:4px 0 0}
+
+/* ---------- pool play ---------- */
+.pool{display:flex;flex-direction:column;gap:14px}
+.standings tr.q td{font-weight:600}
+.qtag{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--good);border:1.5px solid currentColor;border-radius:999px;padding:1px 7px;margin-left:4px;white-space:nowrap}
+.rr-rounds{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(340px,100%),1fr));gap:16px}
+.rr-round{display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--rule);padding-top:10px}
+.rr-round h3,.bround h3{font-family:var(--display);font-weight:800;font-size:20px;text-transform:uppercase;letter-spacing:.04em;margin:0}
+.mrow{display:grid;grid-template-columns:1fr 52px 12px 52px 1fr;gap:6px;align-items:center}
+.mrow .mtag{grid-column:1 / -1}
+.mtag{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.mname{font-size:14px;overflow-wrap:anywhere}
+.mname.a{text-align:right}
+.mname.win{font-weight:700}
+.mname.win::after{content:" ✓";color:var(--good)}
+.mname.a.win::after{content:""}
+.mname.a.win::before{content:"✓ ";color:var(--good)}
+.dash{text-align:center;color:var(--muted)}
+input.score{width:100%;text-align:center;padding:6px 4px;-moz-appearance:textfield}
+input.score::-webkit-inner-spin-button,input.score::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+input.score:disabled{opacity:.7}
+
+/* ---------- bracket: one column per round, matches spread to line up with the next round ---------- */
+.bracket-wrap{overflow-x:auto;padding-bottom:6px}
+.bracket{display:flex;gap:20px;min-width:max-content}
+.bround{display:flex;flex-direction:column;gap:10px;width:230px}
+.bmatches{display:flex;flex-direction:column;justify-content:space-around;gap:14px;flex:1}
+.bmatch{display:flex;flex-direction:column;gap:4px;background:var(--ground);border:1px solid var(--rule);border-radius:8px;padding:8px}
+.bmatch.done{border-color:var(--court)}
+.slot{display:grid;grid-template-columns:20px 1fr 48px;gap:6px;align-items:center;min-height:34px;font-size:14px}
+.slot .seed{color:var(--muted);font-size:12px;text-align:right}
+.slot .nm{overflow-wrap:anywhere}
+.slot.win .nm{font-weight:700}
+.slot.tbd .nm{color:var(--muted);font-style:italic}
+
+/* ---------- picked teams: tap two players to pair them ---------- */
+.pick{display:flex;gap:8px;align-items:baseline;background:var(--surface);border:1.5px dashed var(--rule);border-radius:6px;padding:6px 10px;font-size:14px;font-weight:600;cursor:pointer}
+.pick small{color:var(--muted);font-weight:400}
+.pick:hover{border-color:var(--court)}
+.pick.sel{background:var(--ball);color:var(--ball-ink);border:1.5px solid var(--ball)}
+.pick.sel small{color:var(--ball-ink)}
+.entrant .x{border:0;background:transparent;color:var(--muted);font-size:16px;cursor:pointer;padding:0 2px;line-height:1}
+.entrant .x:hover{color:var(--bad)}
+
+/* ---------- team colors & names ---------- */
+.tdot{display:inline-block;width:12px;height:12px;border-radius:50%;background:var(--tc);flex:none;box-shadow:0 0 0 2px var(--surface)}
+.tteam{display:inline-flex;gap:7px;align-items:center;text-align:left;vertical-align:middle}
+.tteam small{display:block;font-size:12px;font-weight:400;color:var(--muted)}
+.mname.a .tteam{flex-direction:row-reverse;text-align:right}
+.champ .tteam{gap:12px}
+.champ .tdot{width:22px;height:22px;box-shadow:0 0 0 3px var(--ball-ink)}
+.champ .tteam small{color:var(--ball-ink);opacity:.75;font-family:var(--body);font-size:14px;text-transform:none;font-weight:600}
+.entrant .tdot{align-self:center}
+
+.team-rows{display:flex;flex-direction:column;gap:6px}
+.team-row{display:grid;grid-template-columns:14px 1fr auto auto;gap:10px;align-items:center;background:var(--ground);border:1px solid var(--rule);border-left:5px solid var(--tc);border-radius:6px;padding:6px 10px}
+.team-row > small{color:var(--muted)}
+.team-id{display:flex;flex-direction:column;gap:2px;min-width:0}
+.team-id small{font-size:12px;color:var(--muted);overflow-wrap:anywhere}
+.team-id input.tname{background:var(--surface);padding:5px 8px;font-weight:600}
+.team-row .x{border:0;background:transparent;color:var(--muted);font-size:18px;cursor:pointer}
+.team-row .x:hover{color:var(--bad)}
+
+.slot{border-left:4px solid var(--tc,transparent);padding-left:6px;border-radius:2px}
+
+/* ---------- review fixes ---------- */
+/* keep wide content (the bracket) scrolling inside its own box instead of widening the page */
+.grid > *, .board{min-width:0}
+.bracket-wrap{max-width:100%}
+
+/* mode tabs: one row you can swipe sideways on phones */
+.modes{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.modes::-webkit-scrollbar{display:none}
+.modes label{flex:none}
+
+.mwarn{grid-column:1 / -1;margin:0;font-size:12px;font-weight:600;color:var(--bad);text-align:center}
+.bmatch .mwarn{text-align:left}
+
+.rule{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;font-size:14px}
+.rule label{display:flex;gap:6px;align-items:center;cursor:pointer;font-weight:600}
+.rule input[type=checkbox]{width:18px;height:18px;accent-color:var(--court)}
+.rule input.score{width:56px}
+.rule .help{flex-basis:100%}
+
+.note select{margin-left:4px;font-weight:600;background:var(--surface);border:1px solid var(--rule);border-radius:6px;padding:3px 6px}
+.late{display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--rule);padding-top:12px}
+.late-row{display:flex;flex-wrap:wrap;gap:8px}
+.late-row select,.late-row input{background:var(--ground);border:1px solid var(--rule);border-radius:6px;padding:8px 10px;min-width:0;flex:1 1 140px}
+
+.toast{display:flex;gap:12px;align-items:center}
+.toast-btn{border:0;background:var(--ball);color:var(--ball-ink);font-weight:700;border-radius:6px;padding:4px 10px;cursor:pointer}
