@@ -12,12 +12,13 @@
 <body>
 <div class="wrap">
   <header class="top">
-    <h1><span>Club open play</span>Rotation Maker</h1>
-    <p class="tag">Check players in, enter their rating, and hit Next round. Sit-outs stay even, partners keep changing, and teams come out balanced.</p>
+    <h1><span id="kicker">Pickleball open play</span>Rotation Maker</h1>
+    <p class="tag">Check players in, enter their DUPR, and hit Next round. Sit-outs stay even, partners keep changing, and teams come out balanced.</p>
   </header>
 
   <div id="banner" class="banner" hidden>
-    <span>These are example players. Clear them to start your own session.</span>
+    <span class="banner-long">These are example players. Clear them to start your own session.</span>
+    <span class="banner-short">Example players loaded</span>
     <button class="btn" id="clearExamples" type="button">Clear examples</button>
   </div>
 
@@ -25,17 +26,13 @@
     <label><input type="radio" name="mode" id="md-open" value="open"><span>Open play</span></label>
     <label><input type="radio" name="mode" id="md-rr" value="rr"><span>Round robin</span></label>
     <label><input type="radio" name="mode" id="md-bracket" value="bracket"><span>Bracket</span></label>
-    <label><input type="radio" name="mode" id="md-combo" value="combo"><span>Round robin + bracket</span></label>
+    <label><input type="radio" name="mode" id="md-combo" value="combo"><span>Pool + bracket</span></label>
   </nav>
 
+  <!-- On phones the grid order becomes: courts, players/settings, fairness, history (see styles.css). -->
   <div class="grid">
-    <aside class="panel" aria-label="Session setup">
-      <div class="field">
-        <span class="label" id="sportLbl">Sport</span>
-        <div class="seg" role="radiogroup" aria-labelledby="sportLbl">
-          <label><input type="radio" name="sport" id="sp-pickleball" value="pickleball"><span>Pickleball</span></label>
-          <label><input type="radio" name="sport" id="sp-tennis" value="tennis"><span>Tennis</span></label>        </div>
-      </div>
+    <aside class="panel setup" aria-label="Players and settings">
+      <p class="note" id="tNote" hidden>Tournament in progress. Roster changes apply to the next one. To add someone now, use Late arrivals.</p>
 
       <div class="row2">
         <div class="field">
@@ -55,13 +52,21 @@
         </div>
       </div>
 
-      <div class="field" id="grpField">
+      <div class="field" id="openOpts">
         <span class="label" id="grpLbl">Who plays together</span>
         <div class="seg" role="radiogroup" aria-labelledby="grpLbl">
           <label><input type="radio" name="grouping" id="gp-balanced" value="balanced"><span>Mix levels</span></label>
           <label><input type="radio" name="grouping" id="gp-level" value="level"><span>Group by level</span></label>
         </div>
         <p class="help" id="grpHelp"></p>
+        <div class="opt-row">
+          <label class="check"><input type="checkbox" id="hideCourts"> Hide courts until revealed</label>
+          <label class="check">Round timer
+            <select id="timerMin" aria-label="Round timer">
+              <option value="0">Off</option><option value="12">12 min</option><option value="15">15 min</option><option value="20">20 min</option>
+            </select>
+          </label>
+        </div>
       </div>
 
       <div class="field">
@@ -69,13 +74,18 @@
           <h2>Players</h2>
           <span class="label num" id="hereCount"></span>
         </div>
-        <div class="cols"><span>In</span><span>Name</span><span id="ratingCol">DUPR</span><span></span></div>
+        <div class="bulk-check">
+          <button class="btn quiet" type="button" id="allIn">Check all in</button>
+          <button class="btn quiet" type="button" id="allOut">Check all out</button>
+        </div>
+        <div class="cols"><span>In</span><span>Name</span><span></span><span id="ratingCol">DUPR</span><span></span></div>
         <ul class="roster" id="roster"></ul>
         <form class="add" id="addForm">
           <input type="text" id="addName" placeholder="Add a player" aria-label="New player name" autocomplete="off">
-          <input type="text" id="addRating" inputmode="decimal" aria-label="New player rating" autocomplete="off">
+          <input type="text" id="addRating" inputmode="decimal" placeholder="DUPR" aria-label="New player DUPR" autocomplete="off">
           <button class="btn" type="submit">Add</button>
         </form>
+        <p class="hint" id="addHint" role="alert" hidden></p>
         <p class="help" id="ratingHelp"></p>
         <details>
           <summary>Paste a whole list</summary>
@@ -90,37 +100,42 @@
     <section class="main">
       <div id="tourney" class="stack" hidden></div>
       <div id="openPlay" class="stack">
-      <div class="board">
-        <div class="board-head">
-          <div class="round-no"><span class="label">Round</span><b class="num" id="roundNo">–</b></div>
-          <div class="actions">
-            <button class="btn quiet" type="button" id="undo">Undo round</button>
-            <button class="btn" type="button" id="copy">Copy for group chat</button>
-            <button class="btn" type="button" id="reveal">Reveal courts</button>
-            <button class="btn primary" type="button" id="next">Next round</button>
+        <div class="board">
+          <div class="board-head">
+            <div class="head-left">
+              <div class="round-no"><span class="label">Round</span><b class="num" id="roundNo">–</b></div>
+              <div class="timer num" id="timer" role="timer" hidden></div>
+            </div>
+            <div class="actions">
+              <button class="btn primary" type="button" id="next">Next round</button>
+              <div class="minor">
+                <button class="btn quiet" type="button" id="undo">Undo round</button>
+                <button class="btn" type="button" id="copy">Copy for group chat</button>
+                <button class="btn" type="button" id="hideAll" hidden>Hide courts</button>
+              </div>
+            </div>
           </div>
+          <button class="reveal-bar" type="button" id="revealBar" hidden>Reveal who plays on each court</button>
+          <div id="courts" class="courts"></div>
+          <div class="sitting" id="sitting"></div>
         </div>
-        <button class="reveal-bar" type="button" id="revealBar" hidden>Reveal who plays on each court</button>
-        <div id="courts" class="courts"></div>
-        <div class="sitting" id="sitting"></div>
-      </div>
 
-      <div class="split">
-        <div class="panel">
-          <div class="roster-head"><h2>Fairness</h2><span class="label">this session</span></div>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>Player</th><th class="r">Played</th><th class="r">Sat out</th><th class="r">Partners</th></tr></thead>
-              <tbody id="fair"></tbody>
-            </table>
+        <div class="split">
+          <div class="panel">
+            <div class="roster-head"><h2>Fairness</h2><span class="label">most owed a game first</span></div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Player</th><th class="r">Sat out</th><th class="r">Played</th><th class="r" id="partTh">Partners</th></tr></thead>
+                <tbody id="fair"></tbody>
+              </table>
+            </div>
+            <p class="help" id="fairHelp">Partners = different people you’ve teamed with.</p>
           </div>
-          <p class="help">Partners counts the different people each player has teamed with. Late arrivals are credited with the fewest games anyone present has played, so they slot into the rotation without skipping the line.</p>
+          <div class="panel">
+            <div class="roster-head"><h2>History</h2><button class="btn quiet" type="button" id="reset">New session</button></div>
+            <ul class="history" id="history"></ul>
+          </div>
         </div>
-        <div class="panel">
-          <div class="roster-head"><h2>History</h2><button class="btn quiet" type="button" id="reset">New session</button></div>
-          <ul class="history" id="history"></ul>
-        </div>
-      </div>
       </div>
     </section>
   </div>
