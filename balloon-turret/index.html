@@ -74,7 +74,7 @@
     .stage .hint {
       position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%);
       background: rgba(0,0,0,.6); color: #fff; font-size: .82rem; padding: 4px 10px;
-      border-radius: 6px; pointer-events: none; white-space: nowrap;
+      border-radius: 6px; pointer-events: none; max-width: calc(100% - 24px); text-align: center;
     }
     .paused-badge {
       position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,.6); color: #fff;
@@ -163,6 +163,19 @@
     .tags li { font-size: .85rem; background: var(--soft); border: 1px solid var(--line); border-radius: 6px; padding: 3px 9px; }
     footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line); font-size: .92rem; color: var(--muted); }
 
+    .chip.cam { display: inline-flex; align-items: center; gap: 6px; border-color: var(--accent); color: var(--accent); font-weight: 600; }
+    .chip.cam svg { width: 16px; height: 16px; flex: none; }
+    .chip.cam[aria-pressed="true"] { color: #fff; }
+    .cambar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 10px 12px; border-bottom: 1px solid var(--line); font-size: .88rem; }
+    .cambar[hidden] { display: none; }
+    .cambar label { font-weight: 600; }
+    .cambar .switch { font-weight: 400; }
+    .cambar select, .cambar button {
+      font: inherit; font-size: .85rem; padding: 4px 10px; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--ink); cursor: pointer;
+    }
+    .cambar .swatch { width: 18px; height: 18px; border-radius: 4px; border: 1px solid var(--line); display: inline-block; vertical-align: -4px; margin-left: -6px; }
+    .cambar .privacy { color: var(--faint); font-size: .8rem; flex-basis: 100%; }
+
     @media (max-width: 700px) {
       .wrap { padding: 28px 16px 48px; }
       h1 { font-size: 1.7rem; }
@@ -193,7 +206,7 @@
 
   <!-- ===================== SIMULATOR ===================== -->
   <h2 id="try">Try the tracker</h2>
-  <p>This is the turret's control loop running in your browser: the same two Kalman filters, automatic gain, lock rules and tuned values as the Python code. The <span style="color:#c026d3;font-weight:600">magenta crosshair</span> is where the turret is pointing. Pick a path, or grab the balloon and move it yourself.</p>
+  <p>This is the turret's control loop running in your browser: the same two Kalman filters, automatic gain, lock rules and tuned values as the Python code. The <span style="color:#c026d3;font-weight:600">magenta crosshair</span> is where the turret is pointing. Pick a path, drag the balloon around, or try it yourself with your webcam: hold up anything brightly colored and the turret will chase it.</p>
 
   <div class="sim" id="sim">
     <div class="paths" role="group" aria-label="Balloon path">
@@ -203,6 +216,17 @@
       <button class="chip" data-path="direction_change" aria-pressed="false">Sudden reverse</button>
       <button class="chip" data-path="heavy_toss" aria-pressed="false">Fast toss</button>
       <button class="chip" data-path="drag" aria-pressed="false">Move it yourself</button>
+      <button class="chip cam" data-path="camera" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>Try it yourself with your webcam</button>
+    </div>
+    <div class="cambar" id="cambar" hidden>
+      <label for="camColor">Track color</label>
+      <select id="camColor">
+        <option value="red">Red</option><option value="orange">Orange</option><option value="yellow">Yellow</option><option value="green">Green</option><option value="blue">Blue</option><option value="purple">Purple</option><option value="pink">Pink</option><option value="picked" disabled>Picked from video</option>
+      </select>
+      <span class="swatch" id="camSwatch" aria-hidden="true"></span>
+      <label class="switch"><input id="camMask" type="checkbox"> Show what it sees</label>
+      <button id="camStop" type="button">Stop camera</button>
+      <span class="privacy">Click your object in the video to lock onto its exact color. The video stays in your browser: nothing is recorded or uploaded.</span>
     </div>
     <div class="sim-main">
     <div class="stage">
@@ -254,7 +278,7 @@
       <span class="btns"><button id="restart" type="button">Restart</button><button id="pause" type="button">Pause</button></span>
     </div>
   </div>
-  <p class="note">What's simulated: the webcam and detector (the balloon's true position plus a little noise, 30 frames per second, an occasional missed frame) and the servos (400°/s, after the delay you set). Everything between them is ported from the Python tracker, so the scores here are close to, but not the same as, the project's own test results, which run the real code on rendered video. The fast toss is there on purpose: a 30 fps camera and hobby servos can't catch it, which is one of the project's known limits.</p>
+  <p class="note">What's simulated: the webcam and detector (the balloon's true position plus a little noise, 30 frames per second, an occasional missed frame) and the servos (400°/s, after the delay you set). Everything between them is ported from the Python tracker, so the scores here are close to, but not the same as, the project's own test results, which run the real code on rendered video. The fast toss is there on purpose: a 30 fps camera and hobby servos can't catch it, which is one of the project's known limits. Webcam mode swaps the simulated balloon for your camera and a JavaScript port of the project's color detector (same color presets and click-to-pick). The turret itself stays simulated, like the project's <code>--dry-run</code> mode.</p>
 
   <!-- ===================== HOW IT WORKS ===================== -->
   <h2>How it works</h2>
@@ -528,10 +552,165 @@
   let S = null;            // simulation state
   let drag = { active: false, x: 420, y: 220 };
 
+  // ===== Webcam mode: a port of balloon_detect.py's HSV color detector =====
+  const AW = 160, AH = 120, AS = W / AW;                 // analyse at 1/4 size
+  const PRESETS = {                                      // presets.json (OpenCV HSV, hue 0-179)
+    red: { h_min: 170, h_max: 8, s_min: 120, s_max: 255, v_min: 70, v_max: 255 },
+    orange: { h_min: 8, h_max: 22, s_min: 120, s_max: 255, v_min: 100, v_max: 255 },
+    yellow: { h_min: 22, h_max: 35, s_min: 100, s_max: 255, v_min: 100, v_max: 255 },
+    green: { h_min: 40, h_max: 85, s_min: 80, s_max: 255, v_min: 50, v_max: 255 },
+    blue: { h_min: 95, h_max: 130, s_min: 100, s_max: 255, v_min: 50, v_max: 255 },
+    purple: { h_min: 130, h_max: 155, s_min: 60, s_max: 255, v_min: 40, v_max: 255 },
+    pink: { h_min: 155, h_max: 175, s_min: 50, s_max: 255, v_min: 120, v_max: 255 },
+  };
+  const SWATCH = { red: "#d42a2a", orange: "#f08a24", yellow: "#f2cf2a", green: "#2fa84f", blue: "#2f6fdb", purple: "#8a3fd1", pink: "#ec6fb0" };
+  const MIN_AREA = 500 / (AS * AS);                      // presets' min_area (640x480 px) at analysis size
+  const N = AW * AH;
+  const cam = {
+    stream: null, video: null, ready: false, message: "", range: PRESETS.red, showMask: false,
+    work: document.createElement("canvas"), maskCanvas: document.createElement("canvas"),
+    H: new Uint8Array(N), Sa: new Uint8Array(N), V: new Uint8Array(N),
+    mask: new Uint8Array(N), tmp: new Uint8Array(N), labels: new Int32Array(N),
+  };
+  cam.work.width = cam.maskCanvas.width = AW; cam.work.height = cam.maskCanvas.height = AH;
+  const wctx = cam.work.getContext("2d", { willReadFrequently: true });
+  const mctx = cam.maskCanvas.getContext("2d");
+  const maskImg = mctx.createImageData(AW, AH);
+
+  function setHint(text) { const el = $("hint"); el.hidden = !text; if (text) el.textContent = text; }
+
+  function drawVideo(c, w, h) {                          // mirrored like a selfie view, cropped to 4:3
+    const v = cam.video, vw = v.videoWidth, vh = v.videoHeight;
+    let sw = vw, sh = vh;
+    if (vw / vh > 4 / 3) sw = vh * 4 / 3; else sh = vw * 3 / 4;
+    c.save(); c.translate(w, 0); c.scale(-1, 1);
+    c.drawImage(v, (vw - sw) / 2, (vh - sh) / 2, sw, sh, 0, 0, w, h);
+    c.restore();
+  }
+
+  function morph(src, dst, dilate) {                     // 3x3 dilate (any neighbour on) / erode (any off)
+    const want = dilate ? 1 : 0;
+    for (let y = 0; y < AH; y++) for (let x = 0; x < AW; x++) {
+      let hit = false;
+      for (let dy = -1; dy <= 1 && !hit; dy++) {
+        const yy = y + dy; if (yy < 0 || yy >= AH) continue;
+        for (let dx = -1; dx <= 1; dx++) {
+          const xx = x + dx; if (xx < 0 || xx >= AW) continue;
+          if (src[yy * AW + xx] === want) { hit = true; break; }
+        }
+      }
+      dst[y * AW + x] = dilate ? (hit ? 1 : 0) : (hit ? 0 : 1);
+    }
+  }
+
+  function detectCamera() {
+    if (!cam.ready || cam.video.readyState < 2) return null;
+    drawVideo(wctx, AW, AH);
+    const px = wctx.getImageData(0, 0, AW, AH).data, t = cam.range;
+    for (let i = 0, j = 0; i < N; i++, j += 4) {         // RGB -> HSV the way OpenCV does it, then threshold
+      const r = px[j], g = px[j + 1], b = px[j + 2];
+      const v = Math.max(r, g, b), d = v - Math.min(r, g, b);
+      let h = 0;
+      if (d) { h = v === r ? 60 * (g - b) / d : v === g ? 120 + 60 * (b - r) / d : 240 + 60 * (r - g) / d; if (h < 0) h += 360; }
+      const hh = Math.round(h / 2) % 180, ss = v ? Math.round(d * 255 / v) : 0;
+      cam.H[i] = hh; cam.Sa[i] = ss; cam.V[i] = v;
+      const hueOk = t.h_min <= t.h_max ? hh >= t.h_min && hh <= t.h_max : hh >= t.h_min || hh <= t.h_max;
+      cam.mask[i] = hueOk && ss >= t.s_min && ss <= t.s_max && v >= t.v_min && v <= t.v_max ? 1 : 0;
+    }
+    morph(cam.mask, cam.tmp, false); morph(cam.tmp, cam.mask, true);   // open: remove specks
+    morph(cam.mask, cam.tmp, true); morph(cam.tmp, cam.mask, false);   // close: fill holes
+    // Biggest blob that isn't a laser dot (find_largest_blob)
+    cam.labels.fill(0);
+    let best = null, label = 0;
+    const stack = [];
+    for (let start = 0; start < N; start++) {
+      if (!cam.mask[start] || cam.labels[start]) continue;
+      label++;
+      let area = 0, sx = 0, sy = 0, sv = 0;
+      cam.labels[start] = label; stack.push(start);
+      while (stack.length) {
+        const p = stack.pop(), x = p % AW, y = (p - x) / AW;
+        area++; sx += x; sy += y; sv += cam.V[p];
+        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+          const xx = x + dx, yy = y + dy;
+          if (xx < 0 || yy < 0 || xx >= AW || yy >= AH) continue;
+          const q = yy * AW + xx;
+          if (cam.mask[q] && !cam.labels[q]) { cam.labels[q] = label; stack.push(q); }
+        }
+      }
+      if (area < MIN_AREA) continue;
+      if (area * AS * AS < 1500 && sv / area >= 230) continue;          // small and very bright: a laser dot
+      if (!best || area > best.area) best = { area, x: (sx / area + 0.5) * AS, y: (sy / area + 0.5) * AS };
+    }
+    if (cam.showMask) {
+      const d = maskImg.data;
+      for (let i = 0, j = 0; i < N; i++, j += 4) { d[j] = 34; d[j + 1] = 211; d[j + 2] = 238; d[j + 3] = cam.mask[i] ? 150 : 0; }
+      mctx.putImageData(maskImg, 0, 0);
+    }
+    return best ? [best.x, best.y, Math.sqrt(best.area / Math.PI) * AS] : null;
+  }
+
+  let hintTimer = null;
+  function pickColor(x, y) {                             // click-to-pick, like balloon_detect.py
+    if (!cam.ready) return;
+    const cx = clamp(Math.floor(x / AS), 0, AW - 1), cy = clamp(Math.floor(y / AS), 0, AH - 1);
+    const hs = [], ss = [], vs = [];
+    for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+      const i = clamp(cy + dy, 0, AH - 1) * AW + clamp(cx + dx, 0, AW - 1);
+      hs.push(cam.H[i]); ss.push(cam.Sa[i]); vs.push(cam.V[i]);
+    }
+    const med = a => a.sort((p, q) => p - q)[a.length >> 1];
+    const h = med(hs), s = med(ss), v = med(vs);
+    cam.range = s < 60                                   // grayish: hue means nothing, match by brightness
+      ? { h_min: 0, h_max: 179, s_min: 0, s_max: Math.min(255, s + 60), v_min: Math.max(0, v - 60), v_max: Math.min(255, v + 60) }
+      : { h_min: (h + 170) % 180, h_max: (h + 10) % 180, s_min: Math.max(s - 70, 0), s_max: 255, v_min: Math.max(v - 80, 0), v_max: 255 };
+    const sel = $("camColor");
+    sel.querySelector('option[value="picked"]').disabled = false;
+    sel.value = "picked";
+    const c = wctx.getImageData(cx, cy, 1, 1).data;
+    $("camSwatch").style.background = `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
+    setHint(s < 60 ? "Got it. Pale colors are harder to track, so try something vivid" : "Got it. Now move it around");
+    clearTimeout(hintTimer);
+    hintTimer = setTimeout(() => { if (settings.path === "camera") setHint(null); }, 2500);
+  }
+
+  async function startCamera() {
+    cam.message = "Starting camera…";
+    setHint("Allow camera access to start");
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      cam.message = "This browser can't use a webcam here."; setHint(null); return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" }, audio: false });
+      if (settings.path !== "camera") { stream.getTracks().forEach(tr => tr.stop()); return; }
+      const video = document.createElement("video");
+      video.muted = true; video.playsInline = true; video.setAttribute("playsinline", "");
+      video.srcObject = stream;
+      cam.stream = stream; cam.video = video;
+      await video.play();
+      cam.ready = true; cam.message = "";
+      setHint("Hold up something brightly colored, then click it");
+      clearTimeout(hintTimer);
+      hintTimer = setTimeout(() => { if (settings.path === "camera") setHint(null); }, 6000);
+    } catch (e) {
+      cam.message = e && e.name === "NotAllowedError" ? "Camera blocked.\nAllow camera access for this site to try it."
+        : e && e.name === "NotFoundError" ? "No camera found on this device." : "Couldn't start the camera.";
+      setHint(null);
+      if (cam.stream) cam.stream.getTracks().forEach(tr => tr.stop());
+      cam.stream = null; cam.video = null; cam.ready = false;
+    }
+  }
+
+  function stopCamera() {
+    if (cam.stream) cam.stream.getTracks().forEach(tr => tr.stop());
+    if (cam.video) cam.video.srcObject = null;
+    cam.stream = null; cam.video = null; cam.ready = false;
+  }
+
   function newState() {
     const cx = W / 2, cy = H / 2;
     return {
-      t: 0, pathT: 0, pathFn: settings.path === "drag" ? null : PATHS[settings.path].make(),
+      t: 0, pathT: 0, pathFn: PATHS[settings.path] ? PATHS[settings.path].make() : null,
       truePos: null, prevTrue: null, det: null,
       cmd: [cx, cy], sent: [cx, cy], servo: [cx, cy], servoTarget: [cx, cy], hist: [],
       predictor: new MotionTracker(), radii: [], lastSeen: -1e9,
@@ -564,11 +743,17 @@
 
     // Camera + detector
     S.prevTrue = S.truePos;
-    S.truePos = truePosition();
-    let det = null;
-    const visible = S.truePos && S.truePos[0] > 0 && S.truePos[0] < W && S.truePos[1] > 0 && S.truePos[1] < H;
-    if (visible && rand() > DROPOUT) {
-      det = [S.truePos[0] + DETECT_NOISE_PX * gauss(), S.truePos[1] + DETECT_NOISE_PX * gauss(), Math.max(2, r + 0.2 * gauss())];
+    let det = null, visible;
+    if (settings.path === "camera") {            // your webcam + the color detector
+      det = detectCamera();
+      S.truePos = det ? [det[0], det[1]] : null;
+      visible = !!det;
+    } else {                                     // simulated balloon + simulated detector
+      S.truePos = truePosition();
+      visible = S.truePos && S.truePos[0] > 0 && S.truePos[0] < W && S.truePos[1] > 0 && S.truePos[1] < H;
+      if (visible && rand() > DROPOUT) {
+        det = [S.truePos[0] + DETECT_NOISE_PX * gauss(), S.truePos[1] + DETECT_NOISE_PX * gauss(), Math.max(2, r + 0.2 * gauss())];
+      }
     }
     // Gate: ignore detections far from the prediction
     if (det && settings.predict && S.predictor.active) {
@@ -699,11 +884,21 @@
   function draw() {
     if (!S) return;
     ctx.setTransform(viewScale, 0, 0, viewScale, 0, 0);
-    ctx.drawImage(bg, 0, 0);
     const r = settings.radius;
+    if (settings.path === "camera") {
+      if (!cam.ready || cam.video.readyState < 2) {    // no picture yet: just say why
+        ctx.fillStyle = "#1b1e24"; ctx.fillRect(0, 0, W, H);
+        ctx.fillStyle = "#cbd2dc"; ctx.font = "26px system-ui, sans-serif"; ctx.textAlign = "center";
+        (cam.message || "Starting camera…").split("\n").forEach((line, i, all) => ctx.fillText(line, W / 2, H / 2 + (i - (all.length - 1) / 2) * 36));
+        ctx.textAlign = "start";
+        return;
+      }
+      drawVideo(ctx, W, H);
+      if (cam.showMask) ctx.drawImage(cam.maskCanvas, 0, 0, W, H);
+    } else ctx.drawImage(bg, 0, 0);
 
     // Balloon (with a little motion blur when fast)
-    if (S.truePos) {
+    if (S.truePos && settings.path !== "camera") {
       const [x, y] = S.truePos;
       if (S.prevTrue) {
         const dx = x - S.prevTrue[0], dy = y - S.prevTrue[1];
@@ -811,11 +1006,16 @@
   // ===== Controls =====
   document.querySelectorAll(".chip[data-path]").forEach(btn => btn.addEventListener("click", () => selectPath(btn.dataset.path)));
   function selectPath(path) {
+    const wasCamera = settings.path === "camera";
     settings.path = path;
     document.querySelectorAll(".chip[data-path]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.path === path)));
-    $("hint").hidden = path !== "drag";
+    setHint(path === "drag" ? "Drag the balloon around" : null);
     canvas.style.touchAction = path === "drag" ? "none" : "";
-    if (path === "drag" && S && S.truePos) { drag.x = S.truePos[0]; drag.y = S.truePos[1]; }
+    if (path === "drag" && S && S.truePos && !wasCamera) { drag.x = S.truePos[0]; drag.y = S.truePos[1]; }
+    $("cambar").hidden = path !== "camera";
+    $("size").disabled = path === "camera";
+    $("sizeOut").textContent = path === "camera" ? "auto" : `${settings.radius} px`;
+    if (path === "camera") { if (!cam.stream) startCamera(); } else if (wasCamera) stopCamera();
     restart();
   }
   document.querySelectorAll(".seg button[data-mode]").forEach(btn => btn.addEventListener("click", () => setMode(btn.dataset.mode)));
@@ -833,13 +1033,21 @@
     paused = !paused; $("pause").textContent = paused ? "Play" : "Pause"; $("pausedBadge").hidden = !paused;
   });
 
+  $("camSwatch").style.background = SWATCH.red;
+  $("camColor").addEventListener("change", e => {
+    if (PRESETS[e.target.value]) { cam.range = PRESETS[e.target.value]; $("camSwatch").style.background = SWATCH[e.target.value]; resetStats(); }
+  });
+  $("camMask").addEventListener("change", e => { cam.showMask = e.target.checked; });
+  $("camStop").addEventListener("click", () => selectPath("drift"));
+  window.addEventListener("pagehide", stopCamera);
+
   const holdFire = on => { fireHeld = on; if (S) updateReadout(); };
   fireBtn.addEventListener("pointerdown", e => { e.preventDefault(); fireBtn.setPointerCapture(e.pointerId); holdFire(true); });
   ["pointerup", "pointercancel", "lostpointercapture"].forEach(ev => fireBtn.addEventListener(ev, () => holdFire(false)));
   fireBtn.addEventListener("keydown", e => { if ((e.key === " " || e.key === "Enter") && !e.repeat) { e.preventDefault(); holdFire(true); } });
   fireBtn.addEventListener("keyup", e => { if (e.key === " " || e.key === "Enter") holdFire(false); });
   document.addEventListener("keydown", e => {
-    if (e.target.closest && e.target.closest("input, textarea")) return;
+    if (e.target.closest && e.target.closest("input, textarea, select")) return;
     if ((e.key === "f" || e.key === "F") && !e.repeat) holdFire(true);
     if ((e.key === "m" || e.key === "M") && !e.repeat) setMode(settings.mode === "MANUAL" ? "AUTO" : "MANUAL");
   });
@@ -853,6 +1061,7 @@
   }
   canvas.addEventListener("pointerdown", e => {
     const [x, y] = toCanvas(e);
+    if (settings.path === "camera") { pickColor(x, y); return; }
     if (settings.path !== "drag") { drag.x = x; drag.y = y; selectPath("drag"); }
     drag.active = true; drag.x = x; drag.y = y;
     canvas.classList.add("dragging");
