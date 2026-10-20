@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <base target="_blank">
+  <title>Balloon Turret · Rohan Namdhari</title>
+  <meta name="description" content="A vision-guided pan/tilt turret that tracks balloons with OpenCV, a Kalman filter and an Arduino. Try the tracker in your browser.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='none' stroke='%231a4fa0' stroke-width='3'/%3E%3Cpath d='M16 1v8M16 23v8M1 16h8M23 16h8' stroke='%231a4fa0' stroke-width='3'/%3E%3C/svg%3E">
+  <style>
+    :root {
+      --ink: #1a1a1a;
+      --muted: #555;
+      --faint: #6b7280;
+      --accent: #1a4fa0;
+      --accent-dark: #153f80;
+      --line: #d8dde3;
+      --soft: #f4f6f9;
+      --green: #1f8a4c;
+      --amber: #b7791f;
+      --red: #c0392b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      color: var(--ink);
+      line-height: 1.6;
+      margin: 0;
+      background: #fff;
+    }
+    .wrap { max-width: 860px; margin: 0 auto; padding: 40px 24px 64px; }
+    a { color: var(--accent); }
+    .back { font-size: .95rem; text-decoration: none; }
+    .back:hover { text-decoration: underline; }
+    h1 { font-size: 2.1rem; line-height: 1.2; margin: 28px 0 10px; letter-spacing: -.5px; }
+    h2 { font-size: 1.35rem; margin: 56px 0 12px; }
+    h3 { font-size: 1.02rem; margin: 0 0 4px; }
+    p { margin: 0 0 14px; }
+    .lede { font-size: 1.1rem; color: #333; max-width: 680px; }
+    .status {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-size: .9rem; color: var(--muted);
+      background: var(--soft); border: 1px solid var(--line);
+      border-radius: 12px; padding: 4px 12px; margin: 4px 0 20px;
+    }
+    .status .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--amber); flex: none; }
+    .button {
+      display: inline-block; padding: 10px 18px; background: var(--accent); color: #fff;
+      font-weight: 600; text-decoration: none; border-radius: 8px; border: 0;
+    }
+    .button:hover { background: var(--accent-dark); }
+    .button.ghost { background: #fff; color: var(--accent); border: 1px solid var(--line); }
+    .button.ghost:hover { background: var(--soft); }
+    :focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .muted { color: var(--muted); }
+    .small { font-size: .9rem; }
+
+    /* ---------- Simulator ---------- */
+    .sim { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: #fff; }
+    .paths {
+      display: flex; flex-wrap: wrap; gap: 6px; padding: 12px;
+      border-bottom: 1px solid var(--line); background: var(--soft);
+    }
+    .chip {
+      font: inherit; font-size: .88rem; padding: 6px 12px; border-radius: 999px;
+      border: 1px solid var(--line); background: #fff; color: var(--ink); cursor: pointer;
+    }
+    .chip:hover { border-color: #b9c2cc; }
+    .chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .stage { position: relative; background: #777; }
+    canvas { display: block; width: 100%; height: auto; aspect-ratio: 4 / 3; cursor: grab; }
+    canvas.dragging { cursor: grabbing; }
+    .stage .hint {
+      position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%);
+      background: rgba(0,0,0,.6); color: #fff; font-size: .82rem; padding: 4px 10px;
+      border-radius: 6px; pointer-events: none; white-space: nowrap;
+    }
+    .paused-badge {
+      position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,.6); color: #fff;
+      font-size: .78rem; padding: 3px 8px; border-radius: 6px; pointer-events: none;
+    }
+    .sim-main { display: grid; grid-template-columns: minmax(0, 1fr) 240px; background: #14171c; }
+    .infobar {
+      display: grid; grid-template-columns: 1fr; align-content: start;
+      background: #14171c; color: #d7dde6;
+      font: 12.5px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    .infobar > div { padding: 7px 14px; border-bottom: 1px solid #262b33; min-width: 0; }
+    .infobar .k { display: block; color: #8b95a5; font-size: 11px; letter-spacing: .5px; }
+    .infobar .v { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ok { color: #4ade80; } .warn { color: #fbbf24; } .bad { color: #f87171; } .dim { color: #8b95a5; }
+    .led { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #3a3f47; margin-right: 6px; vertical-align: -1px; }
+    .led.on { background: #4ade80; box-shadow: 0 0 8px #4ade80; }
+    .controls {
+      display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 24px;
+      padding: 16px; border-top: 1px solid var(--line);
+    }
+    .control label, .control .label { display: block; font-size: .85rem; font-weight: 600; margin-bottom: 6px; }
+    .control .help { font-size: .8rem; color: var(--faint); margin: 4px 0 0; }
+    .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+    .seg button {
+      font: inherit; font-size: .85rem; padding: 6px 12px; border: 0; background: #fff; cursor: pointer; color: var(--ink);
+    }
+    .seg button + button { border-left: 1px solid var(--line); }
+    .seg button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+    .fire {
+      font: inherit; font-size: .85rem; font-weight: 600; padding: 6px 14px; margin-left: 8px;
+      border-radius: 8px; border: 1px solid #e3b7b2; background: #fff5f4; color: #9b2c22; cursor: pointer;
+      user-select: none; -webkit-user-select: none; touch-action: none;
+    }
+    .fire.held { background: var(--red); color: #fff; border-color: var(--red); }
+    .fire:disabled { opacity: .45; cursor: not-allowed; }
+    input[type="range"] { width: 100%; accent-color: var(--accent); }
+    .range-row { display: flex; align-items: center; gap: 10px; }
+    .range-row output { font: 12.5px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; min-width: 58px; text-align: right; color: var(--muted); }
+    .switch { display: inline-flex; align-items: center; gap: 8px; font-size: .9rem; cursor: pointer; }
+    .switch input { width: 16px; height: 16px; accent-color: var(--accent); }
+    .simfoot {
+      display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px;
+      padding: 12px 16px; border-top: 1px solid var(--line); background: var(--soft); font-size: .9rem;
+    }
+    .simfoot .btns { display: flex; gap: 8px; }
+    .simfoot button {
+      font: inherit; font-size: .85rem; padding: 5px 12px; border-radius: 8px;
+      border: 1px solid var(--line); background: #fff; cursor: pointer; color: var(--ink);
+    }
+    .note { font-size: .9rem; color: var(--muted); margin-top: 12px; }
+    kbd {
+      font: 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; border: 1px solid var(--line);
+      border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; background: #fff;
+    }
+
+    /* ---------- Content ---------- */
+    .flow { display: flex; align-items: stretch; gap: 0; margin: 18px 0 24px; }
+    .flow .node { flex: 1; border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; background: #fff; }
+    .flow .node.main { flex: 1.6; background: var(--soft); }
+    .flow .node strong { display: block; font-size: .95rem; }
+    .flow .node span { display: block; font-size: .82rem; color: var(--muted); line-height: 1.45; }
+    .flow .link { display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 0 8px; color: var(--faint); font-size: .72rem; min-width: 58px; text-align: center; }
+    .flow .link::before { content: "→"; font-size: 1.2rem; color: #9aa4b1; line-height: 1; }
+    ol.steps { list-style: none; padding: 0; margin: 0; counter-reset: s; display: grid; gap: 14px; }
+    ol.steps li { counter-increment: s; display: grid; grid-template-columns: 30px 1fr; gap: 10px; }
+    ol.steps li::before {
+      content: counter(s); width: 26px; height: 26px; border-radius: 50%; background: var(--soft);
+      border: 1px solid var(--line); display: grid; place-items: center; font-size: .85rem; font-weight: 700; color: var(--accent);
+    }
+    ol.steps p { margin: 0; color: #333; }
+    code { font: .88em ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--soft); padding: 1px 5px; border-radius: 4px; }
+    .tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 16px 0; }
+    .tile { border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+    .tile .num { font-size: 1.5rem; font-weight: 700; letter-spacing: -.5px; font-variant-numeric: tabular-nums; }
+    .tile .num .arrow { color: var(--faint); font-weight: 400; margin: 0 4px; }
+    .tile p { margin: 2px 0 0; font-size: .9rem; color: var(--muted); }
+    .conds { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 18px; padding: 0; list-style: none; }
+    .conds li { font-size: .85rem; border: 1px solid #cfe3d6; background: #f1f8f3; color: #23593a; border-radius: 6px; padding: 3px 9px; }
+    ul.plain { padding-left: 20px; margin: 0 0 14px; }
+    ul.plain li { margin-bottom: 6px; }
+    .lessons { display: grid; gap: 12px; }
+    .lesson { border-left: 3px solid var(--line); padding: 2px 0 2px 14px; }
+    .lesson p { margin: 0; color: #333; }
+    .tags { display: flex; flex-wrap: wrap; gap: 6px; padding: 0; list-style: none; margin: 10px 0 0; }
+    .tags li { font-size: .85rem; background: var(--soft); border: 1px solid var(--line); border-radius: 6px; padding: 3px 9px; }
+    footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line); font-size: .92rem; color: var(--muted); }
+
+    @media (max-width: 700px) {
+      .wrap { padding: 28px 16px 48px; }
+      h1 { font-size: 1.7rem; }
+      .sim-main { grid-template-columns: 1fr; }
+      .infobar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .infobar > div { border-bottom: 0; border-top: 1px solid #262b33; }
+      .infobar > div:nth-child(odd) { border-right: 1px solid #262b33; }
+      .infobar .v { white-space: normal; overflow: visible; }
+      .controls { grid-template-columns: 1fr; }
+      .flow { flex-direction: column; }
+      .flow .link { flex-direction: row; gap: 6px; padding: 6px 0; min-width: 0; }
+      .flow .link::before { content: "↓"; }
+      .tiles { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="/">← Rohan Namdhari</a>
+
+  <h1>Balloon-Tracking Laser Turret</h1>
+  <p class="lede">A webcam finds a balloon, a laptop predicts where it's going, and an Arduino swings a pan/tilt turret to follow it. A pointer-grade laser may only switch on when the turret holds a steady lock and every safety check passes.</p>
+  <p class="status"><span class="dot" aria-hidden="true"></span>Software complete and tested in simulation · hardware build in progress at the SCU Maker Lab</p>
+  <div class="actions">
+    <a class="button" rel="noopener" href="https://github.com/rohan2008/balloon-turret">View on GitHub</a>
+    <a class="button ghost" href="#try" target="_self">Try the tracker ↓</a>
+  </div>
+
+  <!-- ===================== SIMULATOR ===================== -->
+  <h2 id="try">Try the tracker</h2>
+  <p>This is the turret's control loop running in your browser: the same two Kalman filters, automatic gain, lock rules and tuned values as the Python code. The <span style="color:#c026d3;font-weight:600">magenta crosshair</span> is where the turret is pointing. Pick a path, or grab the balloon and move it yourself.</p>
+
+  <div class="sim" id="sim">
+    <div class="paths" role="group" aria-label="Balloon path">
+      <button class="chip" data-path="drift" aria-pressed="true">Drifting</button>
+      <button class="chip" data-path="light_balloon" aria-pressed="false">Falling</button>
+      <button class="chip" data-path="bounce" aria-pressed="false">Bouncing</button>
+      <button class="chip" data-path="direction_change" aria-pressed="false">Sudden reverse</button>
+      <button class="chip" data-path="heavy_toss" aria-pressed="false">Fast toss</button>
+      <button class="chip" data-path="drag" aria-pressed="false">Move it yourself</button>
+    </div>
+    <div class="sim-main">
+    <div class="stage">
+      <canvas id="view" width="640" height="480" aria-label="Simulated camera view: a red balloon, the turret's crosshair and its lock circle"></canvas>
+      <div class="hint" id="hint" hidden>Drag the balloon around</div>
+      <div class="paused-badge" id="pausedBadge" hidden>Paused</div>
+    </div>
+    <div class="infobar" aria-label="Tracker readout">
+      <div><span class="k">STATUS</span><span class="v" id="o-status">—</span></div>
+      <div><span class="k">LASER</span><span class="v" id="o-laser">—</span></div>
+      <div><span class="k">LOCK</span><span class="v" id="o-lock">—</span></div>
+      <div><span class="k">MISS</span><span class="v" id="o-miss">—</span></div>
+      <div><span class="k">GAIN</span><span class="v" id="o-gain">—</span></div>
+      <div><span class="k">LEAD</span><span class="v" id="o-lead">—</span></div>
+      <div><span class="k">MOTION MODEL</span><span class="v" id="o-model">—</span></div>
+      <div><span class="k">LOCK ZONE</span><span class="v" id="o-zone">—</span></div>
+    </div>
+    </div>
+    <div class="controls">
+      <div class="control">
+        <span class="label">Fire mode</span>
+        <div style="display:flex;align-items:center;flex-wrap:wrap;gap:6px">
+          <div class="seg" role="group" aria-label="Fire mode">
+            <button data-mode="MANUAL" aria-pressed="true">Manual</button>
+            <button data-mode="AUTO" aria-pressed="false">Auto</button>
+          </div>
+          <button class="fire" id="fire" type="button">Hold to fire</button>
+        </div>
+        <p class="help">Manual: hold the button (or <kbd>F</kbd>) and the laser fires only while locked. Auto: fires whenever locked.</p>
+      </div>
+      <div class="control">
+        <label for="delay">Servo delay</label>
+        <div class="range-row"><input id="delay" type="range" min="0" max="200" step="10" value="80"><output id="delayOut" for="delay">80 ms</output></div>
+        <p class="help">How long real hobby servos take to react. The tracker aims ahead to make up for it.</p>
+      </div>
+      <div class="control">
+        <span class="label">Prediction</span>
+        <label class="switch"><input id="predict" type="checkbox" checked> Kalman filter + feedforward</label>
+        <p class="help">Turn it off to see plain proportional control trail behind the balloon.</p>
+      </div>
+      <div class="control">
+        <label for="size">Balloon size on camera</label>
+        <div class="range-row"><input id="size" type="range" min="5" max="50" step="1" value="25"><output id="sizeOut" for="size">25 px</output></div>
+        <p class="help">Smaller means farther away. The lock zone shrinks with it, and under 8 px it won't lock at all.</p>
+      </div>
+    </div>
+    <div class="simfoot">
+      <span id="stats" class="muted">Locked 0% of the time · average aim error — px</span>
+      <span class="btns"><button id="restart" type="button">Restart</button><button id="pause" type="button">Pause</button></span>
+    </div>
+  </div>
+  <p class="note">What's simulated: the webcam and detector (the balloon's true position plus a little noise, 30 frames per second, an occasional missed frame) and the servos (400°/s, after the delay you set). Everything between them is ported from the Python tracker, so the scores here are close to, but not the same as, the project's own test results, which run the real code on rendered video. The fast toss is there on purpose: a 30 fps camera and hobby servos can't catch it, which is one of the project's known limits.</p>
+
+  <!-- ===================== HOW IT WORKS ===================== -->
+  <h2>How it works</h2>
+  <div class="flow" aria-label="System diagram">
+    <div class="node"><strong>Webcam</strong><span>30 fps; a background thread keeps only the newest frame</span></div>
+    <div class="link">frames</div>
+    <div class="node main"><strong>Laptop · Python + OpenCV</strong><span>detect → predict → aim → lock → decide whether the laser may fire</span></div>
+    <div class="link">USB serial</div>
+    <div class="node"><strong>Arduino Uno</strong><span>pan/tilt servos, laser, LOCKED LED, fire button, 500 ms watchdog</span></div>
+  </div>
+  <ol class="steps">
+    <li><div><h3>Detect</h3><p>A YOLOv8 model or HSV color thresholds find the balloon. Color detection handles red's hue wrap-around, loosens a little for motion blur, and ignores tiny bright laser dots and look-alikes far from where the balloon should be.</p></div></li>
+    <li><div><h3>Predict</h3><p>Two Kalman filters run side by side, one for steady motion and one for accelerating motion (falling, bouncing). Whichever predicted better gets more weight each frame (an IMM filter), so a falling balloon is followed by the acceleration model automatically.</p></div></li>
+    <li><div><h3>Aim</h3><p>Each frame the turret moves at the balloon's own speed (feedforward) plus a correction for the leftover error. It aims ahead by the measured latency plus the servo delay. The correction strength rises with tracking confidence and is capped below the point where the delay would make it oscillate.</p></div></li>
+    <li><div><h3>Lock</h3><p>The real detection (never just the prediction) has to stay inside a lock zone for 5 frames in a row. The zone scales with how big the balloon looks, and leaving it takes a bigger circle so one noisy frame doesn't drop the lock.</p></div></li>
+    <li><div><h3>Decide</h3><p>One function, <code>laser_should_fire()</code>, is the only place in the code that can turn the laser on.</p></div></li>
+  </ol>
+
+  <!-- ===================== RESULTS ===================== -->
+  <h2>Results so far</h2>
+  <p>All measured in simulation and on a laptop webcam, since the hardware isn't built yet.</p>
+  <div class="tiles">
+    <div class="tile"><div class="num">21%<span class="arrow">→</span>100%</div><p>time locked on a swinging balloon, after adding feedforward and lead</p></div>
+    <div class="tile"><div class="num">72<span class="arrow">→</span>9 ms</div><p>age of the frame being processed, after switching to a newest-frame-only camera thread</p></div>
+    <div class="tile"><div class="num">~60<span class="arrow">→</span>~14 px</div><p>aiming error on a fast falling toss, once the acceleration model was added</p></div>
+    <div class="tile"><div class="num">37%<span class="arrow">→</span>94%</div><p>time locked on a drifting balloon with an 80 ms servo delay, after auto-tuning</p></div>
+  </div>
+  <p class="small muted">The auto-tuner runs the real tracker headless against simulated falls, bounces, throws and drifts at 30 and 60 fps, and searches 150 parameter sets for the best mix of accuracy, time locked and stability.</p>
+
+  <!-- ===================== SAFETY ===================== -->
+  <h2>Safety</h2>
+  <p>The laser is pointer-grade (under 5 mW) and the turret only runs with nobody in its field of view. In code, the laser fires only if every one of these is true on that frame:</p>
+  <ul class="conds">
+    <li>real detection, not a prediction</li>
+    <li>locked for 5 frames</li>
+    <li>no vision fault</li>
+    <li>watchdog OK</li>
+    <li>window focused</li>
+    <li>balloon not too far</li>
+    <li>not calibrating</li>
+    <li>not a first run</li>
+    <li>Arduino connected</li>
+    <li>fire button held (Manual mode)</li>
+  </ul>
+  <ul class="plain">
+    <li><strong>Off by default.</strong> <code>LASER_ENABLED = False</code> in both the Python code and the Arduino sketch. Nothing can fire until both are changed on purpose.</li>
+    <li><strong>Two watchdogs.</strong> If the Python loop stalls for 200 ms, a separate thread sends laser-off. If the Arduino hears nothing for 500 ms, it turns the laser off itself.</li>
+    <li><strong>Kill key.</strong> <kbd>Q</kbd> turns the laser off first, then the LED, then glides the turret home. Closing the window or any error does the same.</li>
+    <li><strong>Tested.</strong> Each rule has a test that proves it. To check the tests themselves, I broke the safety code five different ways and confirmed the suite caught every one.</li>
+  </ul>
+
+  <!-- ===================== LESSONS ===================== -->
+  <h2>What I learned</h2>
+  <p>The turret "lagged", and it turned out to be four different problems that looked like one:</p>
+  <div class="lessons">
+    <div class="lesson"><h3>The picture froze while a key was held</h3><p>OpenCV reads one key per frame, so held-key repeats piled up in Windows' message queue and the window stopped repainting. Reading every waiting key each frame fixed it.</p></div>
+    <div class="lesson"><h3>Old frames</h3><p>Webcam drivers queue frames, so a slow loop works on pictures that are already old. A thread that keeps only the newest frame cut frame age from 72 ms to 9 ms.</p></div>
+    <div class="lesson"><h3>The AI is the slowest part</h3><p>About 14 fps against a 30 fps camera. Running it every third frame, with a fast color tracker in between, keeps up.</p></div>
+    <div class="lesson"><h3>Proportional control always trails</h3><p>Raising the gain just causes overshoot. Matching the balloon's speed (feedforward) plus a small lead for the delay fixed it.</p></div>
+  </div>
+  <p style="margin-top:14px">The lesson: measure before fixing. The built-in timing report exists because guessing kept pointing at the wrong problem.</p>
+
+  <!-- ===================== NEXT ===================== -->
+  <h2>What's next</h2>
+  <ul class="plain">
+    <li>Build the hardware at the SCU Maker Lab and bring it up step by step with the included checklist (slow, gentle, laser disabled).</li>
+    <li>Measure the real servo delay, record clips and re-run the auto-tuner on real footage.</li>
+    <li>Calibrate the camera's field of view and the offset between the laser and the camera.</li>
+    <li>Maybe: a small servo-driven pin to actually pop the balloon, gated by the same lock rules.</li>
+  </ul>
+
+  <h2>Built with</h2>
+  <ul class="tags">
+    <li>Python</li><li>OpenCV</li><li>YOLOv8</li><li>NumPy</li><li>Kalman filters (IMM)</li><li>Arduino / C++</li><li>pyserial</li><li>124 unit tests</li>
+  </ul>
+
+  <footer>
+    <a href="/">← Back to all projects</a> · <a rel="noopener" href="https://github.com/rohan2008/balloon-turret">Source on GitHub</a> · <a href="mailto:rohannamdhari@gmail.com">rohannamdhari@gmail.com</a>
+  </footer>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  // ===== Constants (ported from control.py / simulator.py / tracker_app.py) =====
+  const W = 640, H = 480;
+  const HFOV_DEG = 60;
+  const PX_PER_DEG = W / HFOV_DEG;                       // ~10.7 px per degree
+  const PX_PER_M = W / (2 * 2.0 * Math.tan(Math.PI / 6)); // camera 2 m away, ~277 px/m
+  const G = 9.81;
+  const FPS = 30, DT = 1 / FPS;
+  const PROC_LATENCY_S = 0.030;                          // simulated processing time per frame
+  const SERVO_SPEED_PX = 400 * PX_PER_DEG * DT;          // 400 deg/s per frame
+  const CENTER_ANGLE = 90, MIN_ANGLE = 20, MAX_ANGLE = 160;
+  const MAX_STEP_DEG = 10;
+  const DEFAULT_GAIN = 0.20;
+  const DEFAULT_DEADZONE_PX = 10;
+  const LOST_TIMEOUT_S = 0.5;
+  const RETURN_HOME_PX = 1.0 * PX_PER_DEG;
+  const LOCK_FRACTION = 0.5, LOCK_EXIT_RATIO = 1.8, LOCK_MIN = 6, LOCK_MAX = 60;
+  const MIN_RADIUS = 8, RADIUS_SMOOTH_FRAMES = 5, LOCK_FRAMES = 5;
+  const VELOCITY_DEADZONE = 15, MAX_ACCEL = 6000, MAX_SPEED = 5000, REF_RADIUS = 40;
+  const GATE_MIN_PX = 60, GATE_RADII = 4, GATE_FRAMES_OF_MOTION = 3;
+  const DETECT_NOISE_PX = 0.5, DROPOUT = 0.01;
+  // config/auto_tune.json (what the real tracker loads at startup)
+  const TUNING = {
+    cv_accel_noise: 141.513, ca_jerk_noise: 8855.2898, imm_stay: 0.9821,
+    meas_sigma_base: 1.0, meas_sigma_blur: 2.0, gain_min: 0.3, gain_max: 0.8,
+    confidence_scale: 7.116, speed_cap_gain: 2.0912, min_step_deg: 3.5219,
+  };
+
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(v, hi));
+  const moveToward = (cur, tgt, step) => cur + clamp(tgt - cur, -step, step);
+  let seed = 7;
+  const rand = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+  const gauss = () => Math.sqrt(-2 * Math.log(rand() + 1e-12)) * Math.cos(2 * Math.PI * rand());
+
+  // ===== Tiny matrix helpers =====
+  const zeros = (r, c) => Array.from({ length: r }, () => new Array(c).fill(0));
+  const eye = n => { const m = zeros(n, n); for (let i = 0; i < n; i++) m[i][i] = 1; return m; };
+  const mul = (A, B) => {
+    const r = A.length, k = B.length, c = B[0].length, out = zeros(r, c);
+    for (let i = 0; i < r; i++) for (let j = 0; j < c; j++) {
+      let s = 0; for (let t = 0; t < k; t++) s += A[i][t] * B[t][j]; out[i][j] = s;
+    }
+    return out;
+  };
+  const T = A => A[0].map((_, j) => A.map(row => row[j]));
+  const add = (A, B) => A.map((row, i) => row.map((v, j) => v + B[i][j]));
+  const sub = (A, B) => A.map((row, i) => row.map((v, j) => v - B[i][j]));
+  const scale = (A, s) => A.map(row => row.map(v => v * s));
+  const mv = (A, x) => A.map(row => row.reduce((s, v, j) => s + v * x[j], 0));
+  const outer = (a, b) => a.map(ai => b.map(bj => ai * bj));
+  const blockDiag = (A) => { const m = zeros(6, 6); for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) { m[i][j] = A[i][j]; m[i + 3][j + 3] = A[i][j]; } return m; };
+  const inv2 = S => { const d = S[0][0] * S[1][1] - S[0][1] * S[1][0]; return [[S[1][1] / d, -S[0][1] / d], [-S[1][0] / d, S[0][0] / d]]; };
+  const det2 = S => S[0][0] * S[1][1] - S[0][1] * S[1][0];
+
+  function axisFQ(dt, model) {
+    let F, g, q;
+    if (model === 0) { F = [[1, dt, 0], [0, 1, 0], [0, 0, 0]]; g = [dt * dt / 2, dt, 0]; q = TUNING.cv_accel_noise ** 2; }
+    else { F = [[1, dt, dt * dt / 2], [0, 1, dt], [0, 0, 1]]; g = [dt ** 3 / 6, dt * dt / 2, dt]; q = TUNING.ca_jerk_noise ** 2; }
+    const Q = add(scale(outer(g, g), q), scale(eye(3), 1e-6));
+    return [blockDiag(F), blockDiag(Q)];
+  }
+  const Hm = [[1, 0, 0, 0, 0, 0], [0, 0, 0, 1, 0, 0]];
+
+  // ===== MotionTracker: IMM of a constant-velocity and a constant-acceleration Kalman filter =====
+  class MotionTracker {
+    constructor() { this.reset(); }
+    reset() { this.active = false; this.t = null; this.x = [null, null]; this.P = [null, null]; this.mu = [0.5, 0.5]; this.nis = 2; this.lastV = null; this.turn = 0; }
+    clampState(x) { for (const i of [1, 4]) x[i] = clamp(x[i], -MAX_SPEED, MAX_SPEED); for (const i of [2, 5]) x[i] = clamp(x[i], -MAX_ACCEL, MAX_ACCEL); return x; }
+    update(t, z, sigma) {
+      if (!z && !this.active) return null;
+      if (!this.active) {
+        for (let m = 0; m < 2; m++) {
+          this.x[m] = [z[0], 0, 0, z[1], 0, 0];
+          const d = [sigma ** 2, 400 ** 2, 2000 ** 2, sigma ** 2, 400 ** 2, 2000 ** 2];
+          this.P[m] = zeros(6, 6).map((row, i) => { row[i] = d[i]; return row; });
+        }
+        this.mu = [0.5, 0.5]; this.t = t; this.active = true;
+        return this.estimate();
+      }
+      const dt = clamp(t - this.t, 1e-3, 0.5); this.t = t;
+      const stay = TUNING.imm_stay, PI = [[stay, 1 - stay], [1 - stay, stay]];
+      const c = [PI[0][0] * this.mu[0] + PI[1][0] * this.mu[1], PI[0][1] * this.mu[0] + PI[1][1] * this.mu[1]];
+      // 1) mix
+      const mx = [], mP = [];
+      for (let j = 0; j < 2; j++) {
+        const w = [PI[0][j] * this.mu[0] / Math.max(c[j], 1e-12), PI[1][j] * this.mu[1] / Math.max(c[j], 1e-12)];
+        const xj = this.x[0].map((v, k) => w[0] * v + w[1] * this.x[1][k]);
+        let Pj = zeros(6, 6);
+        for (let i = 0; i < 2; i++) {
+          const d = this.x[i].map((v, k) => v - xj[k]);
+          Pj = add(Pj, scale(add(this.P[i], outer(d, d)), w[i]));
+        }
+        mx.push(xj); mP.push(Pj);
+      }
+      // 2) predict
+      for (let m = 0; m < 2; m++) {
+        const [F, Q] = axisFQ(dt, m);
+        this.x[m] = this.clampState(mv(F, mx[m]));
+        this.P[m] = add(mul(mul(F, mP[m]), T(F)), Q);
+      }
+      if (!z) { const s = c[0] + c[1]; this.mu = [c[0] / s, c[1] / s]; return this.estimate(); }
+      // 3) correct
+      const R = [[sigma ** 2, 0], [0, sigma ** 2]];
+      const lik = [0, 0], nis = [0, 0];
+      for (let m = 0; m < 2; m++) {
+        const hx = mv(Hm, this.x[m]);
+        const inn = [z[0] - hx[0], z[1] - hx[1]];
+        const PHt = mul(this.P[m], T(Hm));
+        const S = add(mul(Hm, PHt), R), Si = inv2(S);
+        const K = mul(PHt, Si);
+        const corr = mv(K, inn);
+        this.x[m] = this.clampState(this.x[m].map((v, k) => v + corr[k]));
+        this.P[m] = mul(sub(eye(6), mul(K, Hm)), this.P[m]);
+        const Sin = mv(Si, inn);
+        nis[m] = inn[0] * Sin[0] + inn[1] * Sin[1];
+        lik[m] = Math.exp(-0.5 * nis[m]) / (2 * Math.PI * Math.sqrt(det2(S)));
+      }
+      // 4) re-weight
+      const mu = [c[0] * Math.max(lik[0], 1e-300), c[1] * Math.max(lik[1], 1e-300)];
+      const s = mu[0] + mu[1];
+      this.mu = s > 0 ? [mu[0] / s, mu[1] / s] : [0.5, 0.5];
+      this.nis = 0.7 * this.nis + 0.3 * (this.mu[0] * nis[0] + this.mu[1] * nis[1]);
+      const est = this.estimate();
+      const v = [est.vx, est.vy], nv = Math.hypot(v[0], v[1]);
+      if (this.lastV && nv > 100 && Math.hypot(this.lastV[0], this.lastV[1]) > 100) {
+        const cos = (v[0] * this.lastV[0] + v[1] * this.lastV[1]) / (nv * Math.hypot(this.lastV[0], this.lastV[1]));
+        this.turn = Math.max(this.turn * 0.7, cos < 0.5 ? 1 : 0);
+      } else this.turn *= 0.7;
+      this.lastV = v;
+      return est;
+    }
+    estimate() {
+      const x = this.x[0].map((v, k) => this.mu[0] * v + this.mu[1] * this.x[1][k]);
+      return { x: x[0], vx: x[1], ax: x[2], y: x[3], vy: x[4], ay: x[5], pAccel: this.mu[1] };
+    }
+    predictAt(tf) {
+      const e = this.estimate(), a = clamp(tf - this.t, 0, 0.5);
+      return [e.x + e.vx * a + 0.5 * e.ax * a * a, e.y + e.vy * a + 0.5 * e.ay * a * a];
+    }
+    confidence() {
+      const excess = Math.max(0, this.nis - 2);
+      return Math.exp(-excess / TUNING.confidence_scale) * (1 - 0.6 * this.turn);
+    }
+  }
+
+  const stableGainCap = d => 0.5 * 2 * Math.sin(Math.PI / (2 * (2 * Math.max(0, d) + 1)));
+  const autoGain = (conf, delayFrames) => Math.min(TUNING.gain_min + (TUNING.gain_max - TUNING.gain_min) * clamp(conf, 0, 1), stableGainCap(delayFrames));
+  const autoStepLimitDeg = speed => {
+    const keep = speed / PX_PER_DEG * DT;
+    return clamp(TUNING.min_step_deg + TUNING.speed_cap_gain * keep, Math.min(TUNING.min_step_deg, MAX_STEP_DEG), MAX_STEP_DEG);
+  };
+  const autoDeadzone = (user, enter, r) => { let d = user; if (enter) d = Math.min(d, enter / 2); if (r) d = Math.min(d, Math.max(2, 0.25 * r)); return d; };
+
+  // ===== Balloon paths (simulator.py) =====
+  const FLOOR_Y = H - 40 - 25;
+  function physicsPath(x0, y0, vx0, vy0, terminal, floor, restitution) {
+    const k = G / terminal ** 2;
+    let x = x0 / PX_PER_M, y = y0 / PX_PER_M, vx = vx0, vy = vy0, t = 0;
+    return target => {
+      while (t < target) {
+        const sp = Math.hypot(vx, vy), step = 0.001;
+        vx += -k * sp * vx * step; vy += (G - k * sp * vy) * step;
+        x += vx * step; y += vy * step;
+        if (floor != null && y * PX_PER_M > floor && vy > 0) { y = floor / PX_PER_M; vy = -vy * restitution; }
+        t += step;
+      }
+      return [x * PX_PER_M, y * PX_PER_M];
+    };
+  }
+  const PATHS = {
+    light_balloon: { dur: 1.7, make: () => physicsPath(200, 50, 0.15, 0, 1.0) },
+    heavy_toss: { dur: 1.1, make: () => physicsPath(160, 330, 0.7, -3.0, 12.0) },
+    bounce: { dur: 4.0, make: () => physicsPath(320, 50, 0.1, 0, 3.0, FLOOR_Y, 0.65) },
+    drift: { dur: 4.4, make: () => t => [80 + PX_PER_M * (0.45 * t + 0.12 * Math.sin(2 * Math.PI * 0.4 * t)), 240 + PX_PER_M * 0.08 * Math.sin(2 * Math.PI * 0.7 * t)] },
+    direction_change: { dur: 2.4, make: () => t => [120 + PX_PER_M * (t < 1.2 ? 1.2 * t : 1.44 - 1.2 * (t - 1.2)), 220 + 30 * Math.sin(Math.PI * t)] },
+  };
+  const GAP_S = 1.0;   // balloon out of view between repeats
+
+  // ===== UI refs =====
+  const $ = id => document.getElementById(id);
+  const canvas = $("view"), ctx = canvas.getContext("2d");
+  const out = { status: $("o-status"), laser: $("o-laser"), lock: $("o-lock"), miss: $("o-miss"), gain: $("o-gain"), lead: $("o-lead"), model: $("o-model"), zone: $("o-zone") };
+  const fireBtn = $("fire");
+
+  const settings = { path: "drift", mode: "MANUAL", servoDelay: 0.08, predict: true, radius: 25 };
+  let fireHeld = false, paused = false, inView = true;
+  let S = null;            // simulation state
+  let drag = { active: false, x: 420, y: 220 };
+
+  function newState() {
+    const cx = W / 2, cy = H / 2;
+    return {
+      t: 0, pathT: 0, pathFn: settings.path === "drag" ? null : PATHS[settings.path].make(),
+      truePos: null, prevTrue: null, det: null,
+      cmd: [cx, cy], sent: [cx, cy], servo: [cx, cy], servoTarget: [cx, cy], hist: [],
+      predictor: new MotionTracker(), radii: [], lastSeen: -1e9,
+      locked: false, close: 0, lockEnter: null, lockExit: null, tooFar: false,
+      laser: false, laserAllowed: false, holding: false, lost: true, gain: 0, lead: 0, conf: 0,
+      target: null, est: null, miss: null, frames: 0, lockedFrames: 0, errSum: 0, runStart: 0,
+    };
+  }
+
+  function truePosition() {
+    if (settings.path === "drag") return [drag.x, drag.y];
+    const p = PATHS[settings.path];
+    if (S.pathT > p.dur) {
+      if (S.pathT > p.dur + GAP_S) { S.pathT = 0; S.pathFn = p.make(); S.runStart = S.t; }
+      else return null;
+    }
+    return S.pathFn(S.pathT);
+  }
+
+  // ===== One camera frame of the tracker loop (tracker_app.py, dry-run) =====
+  function step() {
+    const t = S.t;
+    const center = [W / 2, H / 2];
+    const r = settings.radius;
+
+    // Servos: act on the newest command that is at least servoDelay old, at 400 deg/s
+    while (S.hist.length && t - S.hist[0].t >= settings.servoDelay) S.servoTarget = S.hist.shift().p;
+    S.servo = [moveToward(S.servo[0], S.servoTarget[0], SERVO_SPEED_PX), moveToward(S.servo[1], S.servoTarget[1], SERVO_SPEED_PX)];
+    const aim = S.servo;
+
+    // Camera + detector
+    S.prevTrue = S.truePos;
+    S.truePos = truePosition();
+    let det = null;
+    const visible = S.truePos && S.truePos[0] > 0 && S.truePos[0] < W && S.truePos[1] > 0 && S.truePos[1] < H;
+    if (visible && rand() > DROPOUT) {
+      det = [S.truePos[0] + DETECT_NOISE_PX * gauss(), S.truePos[1] + DETECT_NOISE_PX * gauss(), Math.max(2, r + 0.2 * gauss())];
+    }
+    // Gate: ignore detections far from the prediction
+    if (det && settings.predict && S.predictor.active) {
+      const e = S.predictor.estimate(), p = S.predictor.predictAt(t);
+      const avgR = S.radii.length ? S.radii.reduce((a, b) => a + b) / S.radii.length : 30;
+      const gate = Math.max(GATE_MIN_PX, GATE_RADII * avgR, GATE_FRAMES_OF_MOTION * Math.hypot(e.vx, e.vy) * DT);
+      if (Math.hypot(det[0] - p[0], det[1] - p[1]) > gate) det = null;
+    }
+    S.det = det;
+
+    // Gain and lead
+    S.conf = S.predictor.active ? S.predictor.confidence() : 0;
+    if (settings.predict) {
+      S.lead = PROC_LATENCY_S + settings.servoDelay;
+      S.gain = autoGain(S.conf, PROC_LATENCY_S / DT + 1);
+    } else { S.lead = 0; S.gain = DEFAULT_GAIN; }
+
+    if (det) S.lastSeen = t;
+    const missing = t - S.lastSeen;
+    S.holding = !det && missing <= LOST_TIMEOUT_S;
+    S.lost = !det && !S.holding;
+
+    // Apparent size -> lock zone
+    if (det) { S.radii.push(det[2]); if (S.radii.length > RADIUS_SMOOTH_FRAMES) S.radii.shift(); }
+    else if (S.lost) S.radii = [];
+    const R = S.radii.length ? S.radii.reduce((a, b) => a + b) / S.radii.length : null;
+    if (R != null) { S.lockEnter = clamp(LOCK_FRACTION * R, LOCK_MIN, LOCK_MAX); S.lockExit = S.lockEnter * LOCK_EXIT_RATIO; S.tooFar = R < MIN_RADIUS; }
+    else { S.tooFar = false; }
+    const deadzone = autoDeadzone(DEFAULT_DEADZONE_PX, S.lockEnter, R);
+
+    // Control
+    let target = null, ff = [0, 0];
+    S.est = null;
+    if (S.lost) S.predictor.reset();
+    else if (settings.predict) {
+      let sigma = 0;
+      if (det) {
+        const sizeFactor = clamp(REF_RADIUS / Math.max(det[2], 1), 0.5, 3);
+        // blur streak: shutter open for half a frame, box grows by the distance moved
+        const blur = S.prevTrue && S.truePos ? Math.hypot(S.truePos[0] - S.prevTrue[0], S.truePos[1] - S.prevTrue[1]) * 0.25 : 0;
+        sigma = TUNING.meas_sigma_base * sizeFactor + TUNING.meas_sigma_blur * blur;
+      }
+      const f = S.predictor.update(t, det ? [det[0], det[1]] : null, sigma);
+      if (f) {
+        S.est = f;
+        if (Math.hypot(f.vx, f.vy) > VELOCITY_DEADZONE) ff = [f.vx * DT, f.vy * DT];
+        const p = S.predictor.predictAt(t + S.lead);
+        target = [clamp(p[0], 0, W - 1), clamp(p[1], 0, H - 1)];
+      }
+    } else if (det) target = [det[0], det[1]];
+    S.target = target;
+
+    if (target) {
+      for (let a = 0; a < 2; a++) {
+        const err = target[a] - S.cmd[a];
+        S.cmd[a] += ff[a] + (Math.abs(err) > deadzone ? S.gain * err : 0);
+      }
+    }
+    if (S.lost) S.cmd = [moveToward(S.cmd[0], center[0], RETURN_HOME_PX), moveToward(S.cmd[1], center[1], RETURN_HOME_PX)];
+    const lim = (MAX_ANGLE - CENTER_ANGLE) * PX_PER_DEG;
+    S.cmd = [clamp(S.cmd[0], center[0] - lim, center[0] + lim), clamp(S.cmd[1], center[1] - lim, center[1] + lim)];
+
+    // Lock with hysteresis, using the REAL detection vs where the turret ACTUALLY points
+    S.miss = det ? Math.hypot(det[0] - aim[0], det[1] - aim[1]) : null;
+    if (!det || S.tooFar) { S.locked = false; S.close = 0; }
+    else if (S.locked) { if (S.miss > S.lockExit) { S.locked = false; S.close = 0; } }
+    else { S.close = S.miss < S.lockEnter ? S.close + 1 : 0; if (S.close >= LOCK_FRAMES) S.locked = true; }
+
+    // laser_should_fire(): every condition must hold this frame
+    const focused = document.hasFocus();
+    S.laserAllowed = !!det && S.locked && !S.tooFar && focused;
+    S.laser = S.laserAllowed && (settings.mode === "AUTO" || fireHeld);
+
+    // Send (slew limited), then queue for the servos
+    const speed = S.est ? Math.hypot(S.est.vx, S.est.vy) : 0;
+    const stepPx = autoStepLimitDeg(speed) * PX_PER_DEG;
+    S.sent = [moveToward(S.sent[0], S.cmd[0], stepPx), moveToward(S.sent[1], S.cmd[1], stepPx)];
+    S.hist.push({ t: t + PROC_LATENCY_S, p: S.sent.slice() });
+    S.cmd = [clamp(S.cmd[0], S.sent[0] - stepPx, S.sent[0] + stepPx), clamp(S.cmd[1], S.sent[1] - stepPx, S.sent[1] + stepPx)];
+
+    // Stats (skip the first 0.25 s of each run, like the tuner)
+    if (visible && (settings.path === "drag" || S.t - S.runStart > 0.25)) {
+      S.frames++; if (S.locked) S.lockedFrames++;
+      S.errSum += Math.hypot(S.truePos[0] - aim[0], S.truePos[1] - aim[1]);
+    }
+
+    S.t += DT; S.pathT += DT;
+  }
+
+  // ===== Drawing =====
+  const bg = document.createElement("canvas"); bg.width = W; bg.height = H;
+  (function paintBackground() {
+    const b = bg.getContext("2d");
+    const grd = b.createLinearGradient(0, 0, 0, H);
+    grd.addColorStop(0, "#8d9197"); grd.addColorStop(1, "#a9adb2");
+    b.fillStyle = grd; b.fillRect(0, 0, W, H);
+    b.fillStyle = "rgba(0,0,0,.12)"; b.fillRect(40, 70, 130, 170);
+    b.fillStyle = "rgba(0,0,0,.08)"; b.fillRect(470, 40, 120, 90); b.fillRect(500, 260, 90, 120);
+    b.fillStyle = "rgba(255,255,255,.06)"; b.fillRect(220, 30, 180, 110);
+    b.fillStyle = "rgba(0,0,0,.18)"; b.fillRect(0, FLOOR_Y + 25, W, H - FLOOR_Y - 25);
+    b.fillStyle = "rgba(0,0,0,.25)"; b.fillRect(0, FLOOR_Y + 25, W, 2);
+  })();
+
+  let viewScale = 1;
+  function resize() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const cssW = canvas.clientWidth || W;
+    canvas.width = Math.round(cssW * dpr);
+    canvas.height = Math.round(cssW * dpr * 3 / 4);
+    viewScale = canvas.width / W;
+    draw();
+  }
+
+  function drawBalloon(x, y, r, alpha) {
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = "rgba(40,40,40,.6)"; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x, y + r * 1.12); ctx.quadraticCurveTo(x - r * 0.25, y + r * 1.9, x + r * 0.1, y + r * 2.6); ctx.stroke();
+    const g = ctx.createRadialGradient(x - r * 0.35, y - r * 0.45, r * 0.1, x, y, r * 1.15);
+    g.addColorStop(0, "#ff6b6b"); g.addColorStop(0.55, "#d42a2a"); g.addColorStop(1, "#8f1414");
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.ellipse(x, y, r, r * 1.1, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#8f1414";
+    ctx.beginPath(); ctx.moveTo(x - r * 0.12, y + r * 1.16); ctx.lineTo(x + r * 0.12, y + r * 1.16); ctx.lineTo(x, y + r * 1.04); ctx.fill();
+    ctx.restore();
+  }
+
+  function draw() {
+    if (!S) return;
+    ctx.setTransform(viewScale, 0, 0, viewScale, 0, 0);
+    ctx.drawImage(bg, 0, 0);
+    const r = settings.radius;
+
+    // Balloon (with a little motion blur when fast)
+    if (S.truePos) {
+      const [x, y] = S.truePos;
+      if (S.prevTrue) {
+        const dx = x - S.prevTrue[0], dy = y - S.prevTrue[1];
+        if (Math.hypot(dx, dy) > 6) for (let i = 1; i <= 4; i++) drawBalloon(x - dx * i * 0.12, y - dy * i * 0.12, r, 0.12);
+      }
+      drawBalloon(x, y, r, 1);
+    }
+    const lw = 1 / Math.max(viewScale, 0.5);
+
+    // Detection box
+    if (S.det) {
+      ctx.strokeStyle = "rgba(255,255,255,.75)"; ctx.lineWidth = 1.5 * lw; ctx.setLineDash([4, 3]);
+      ctx.strokeRect(S.det[0] - S.det[2], S.det[1] - S.det[2] * 1.1, S.det[2] * 2, S.det[2] * 2.2);
+      ctx.setLineDash([]);
+    }
+    // Prediction: where it aims (cyan) and velocity arrow
+    if (S.target && settings.predict && S.est) {
+      ctx.strokeStyle = "#22d3ee"; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(S.target[0], S.target[1], 4, 0, Math.PI * 2); ctx.stroke();
+      const e = S.est, k = 0.15;
+      if (Math.hypot(e.vx, e.vy) > 40) {
+        const x2 = e.x + e.vx * k, y2 = e.y + e.vy * k, ang = Math.atan2(e.vy, e.vx);
+        ctx.beginPath(); ctx.moveTo(e.x, e.y); ctx.lineTo(x2, y2);
+        ctx.lineTo(x2 - 7 * Math.cos(ang - 0.45), y2 - 7 * Math.sin(ang - 0.45));
+        ctx.moveTo(x2, y2); ctx.lineTo(x2 - 7 * Math.cos(ang + 0.45), y2 - 7 * Math.sin(ang + 0.45));
+        ctx.stroke();
+      }
+    }
+    // Turret aim + lock zone
+    const [ax, ay] = S.servo;
+    if (S.lockEnter != null && !S.lost) {
+      const zone = S.locked ? "#22c55e" : (S.det && !S.tooFar && S.miss != null && S.miss < S.lockEnter ? "#facc15" : "#ef4444");
+      ctx.strokeStyle = zone; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(ax, ay, Math.max(2, S.lockEnter), 0, Math.PI * 2); ctx.stroke();
+    }
+    ctx.strokeStyle = "#d946ef"; ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(ax - 18, ay); ctx.lineTo(ax - 6, ay); ctx.moveTo(ax + 6, ay); ctx.lineTo(ax + 18, ay);
+    ctx.moveTo(ax, ay - 18); ctx.lineTo(ax, ay - 6); ctx.moveTo(ax, ay + 6); ctx.lineTo(ax, ay + 18);
+    ctx.stroke();
+    // Laser dot
+    if (S.laser) {
+      const g = ctx.createRadialGradient(ax, ay, 0, ax, ay, 16);
+      g.addColorStop(0, "rgba(255,255,255,1)"); g.addColorStop(0.25, "rgba(255,80,80,.95)"); g.addColorStop(1, "rgba(255,0,0,0)");
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(ax, ay, 16, 0, Math.PI * 2); ctx.fill();
+    }
+    // Legend
+    ctx.font = "12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
+    ctx.fillStyle = "rgba(0,0,0,.55)"; ctx.fillRect(8, 8, settings.predict ? 196 : 128, settings.predict ? 40 : 24);
+    ctx.fillStyle = "#f0abfc"; ctx.fillText("+ turret aim", 16, 24);
+    if (settings.predict) { ctx.fillStyle = "#67e8f9"; ctx.fillText("○ predicted (aiming here)", 16, 40); }
+  }
+
+  function setText(el, html) { if (el._last !== html) { el.innerHTML = html; el._last = html; } }
+
+  function updateReadout() {
+    let status;
+    if (S.tooFar && S.det) status = '<span class="warn">TOO FAR</span>';
+    else if (S.locked) status = '<span class="ok">LOCKED</span>';
+    else if (S.det) status = "TRACKING";
+    else if (S.holding && S.predictor.active) status = `<span class="warn">HOLDING (${(S.t - S.lastSeen).toFixed(1)}s)</span>`;
+    else status = '<span class="dim">SEARCHING</span>';
+    setText(out.status, `<span class="led${S.locked ? " on" : ""}"></span>${status}`);
+
+    let laser;
+    if (S.laser) laser = '<span class="bad">ON</span>';
+    else if (S.laserAllowed && settings.mode === "MANUAL") laser = '<span class="warn">READY, hold fire</span>';
+    else if (S.locked && !document.hasFocus()) laser = '<span class="dim">off (page not focused)</span>';
+    else laser = '<span class="dim">off</span>';
+    setText(out.laser, laser);
+
+    setText(out.lock, S.locked ? '<span class="ok">5/5</span>' : `${Math.min(S.close, LOCK_FRAMES)}/${LOCK_FRAMES}`);
+    setText(out.miss, S.miss != null ? `${S.miss.toFixed(1)} px` : '<span class="dim">—</span>');
+    setText(out.gain, settings.predict ? `${S.gain.toFixed(2)} <span class="dim">auto, conf ${S.conf.toFixed(2)}</span>` : `${S.gain.toFixed(2)} <span class="dim">fixed</span>`);
+    setText(out.lead, settings.predict ? `${Math.round(S.lead * 1000)} ms <span class="dim">30 + ${Math.round(settings.servoDelay * 1000)} servo</span>` : '<span class="dim">0 ms (off)</span>');
+    if (settings.predict && S.est) {
+      const p = S.est.pAccel;
+      setText(out.model, p > 0.5 ? `accelerating ${Math.round(p * 100)}%` : `steady ${Math.round((1 - p) * 100)}%`);
+    } else setText(out.model, '<span class="dim">—</span>');
+    setText(out.zone, S.lockEnter != null && !S.lost ? `${S.lockEnter.toFixed(1)} px <span class="dim">exit ${S.lockExit.toFixed(1)}</span>` : '<span class="dim">—</span>');
+
+    const pct = S.frames ? Math.round(100 * S.lockedFrames / S.frames) : 0;
+    const err = S.frames ? (S.errSum / S.frames).toFixed(1) : "—";
+    setText($("stats"), `Locked <strong>${pct}%</strong> of the time · average aim error <strong>${err} px</strong>`);
+    fireBtn.disabled = settings.mode === "AUTO";
+    fireBtn.classList.toggle("held", fireHeld && settings.mode === "MANUAL");
+  }
+
+  // ===== Main loop =====
+  let acc = 0, last = null;
+  function frame(now) {
+    if (last == null) last = now;
+    const elapsed = Math.min((now - last) / 1000, 0.25);
+    last = now;
+    if (!paused && inView) {
+      acc += elapsed;
+      while (acc >= DT) { step(); acc -= DT; }
+      draw(); updateReadout();
+    }
+    requestAnimationFrame(frame);
+  }
+
+  function restart() { S = newState(); acc = 0; draw(); updateReadout(); }
+
+  // ===== Controls =====
+  document.querySelectorAll(".chip[data-path]").forEach(btn => btn.addEventListener("click", () => selectPath(btn.dataset.path)));
+  function selectPath(path) {
+    settings.path = path;
+    document.querySelectorAll(".chip[data-path]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.path === path)));
+    $("hint").hidden = path !== "drag";
+    canvas.style.touchAction = path === "drag" ? "none" : "";
+    if (path === "drag" && S && S.truePos) { drag.x = S.truePos[0]; drag.y = S.truePos[1]; }
+    restart();
+  }
+  document.querySelectorAll(".seg button[data-mode]").forEach(btn => btn.addEventListener("click", () => setMode(btn.dataset.mode)));
+  function setMode(mode) {
+    settings.mode = mode;
+    document.querySelectorAll(".seg button[data-mode]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.mode === mode)));
+    if (S) updateReadout();
+  }
+  $("delay").addEventListener("input", e => { settings.servoDelay = e.target.value / 1000; $("delayOut").textContent = `${e.target.value} ms`; resetStats(); });
+  $("size").addEventListener("input", e => { settings.radius = +e.target.value; $("sizeOut").textContent = `${e.target.value} px`; resetStats(); });
+  $("predict").addEventListener("change", e => { settings.predict = e.target.checked; S.predictor.reset(); resetStats(); });
+  function resetStats() { if (S) { S.frames = 0; S.lockedFrames = 0; S.errSum = 0; S.runStart = S.t; } }
+  $("restart").addEventListener("click", restart);
+  $("pause").addEventListener("click", () => {
+    paused = !paused; $("pause").textContent = paused ? "Play" : "Pause"; $("pausedBadge").hidden = !paused;
+  });
+
+  const holdFire = on => { fireHeld = on; if (S) updateReadout(); };
+  fireBtn.addEventListener("pointerdown", e => { e.preventDefault(); fireBtn.setPointerCapture(e.pointerId); holdFire(true); });
+  ["pointerup", "pointercancel", "lostpointercapture"].forEach(ev => fireBtn.addEventListener(ev, () => holdFire(false)));
+  fireBtn.addEventListener("keydown", e => { if ((e.key === " " || e.key === "Enter") && !e.repeat) { e.preventDefault(); holdFire(true); } });
+  fireBtn.addEventListener("keyup", e => { if (e.key === " " || e.key === "Enter") holdFire(false); });
+  document.addEventListener("keydown", e => {
+    if (e.target.closest && e.target.closest("input, textarea")) return;
+    if ((e.key === "f" || e.key === "F") && !e.repeat) holdFire(true);
+    if ((e.key === "m" || e.key === "M") && !e.repeat) setMode(settings.mode === "MANUAL" ? "AUTO" : "MANUAL");
+  });
+  document.addEventListener("keyup", e => { if (e.key === "f" || e.key === "F") holdFire(false); });
+  window.addEventListener("blur", () => holdFire(false));
+
+  // Drag the balloon
+  function toCanvas(e) {
+    const rect = canvas.getBoundingClientRect();
+    return [clamp((e.clientX - rect.left) / rect.width * W, 0, W), clamp((e.clientY - rect.top) / rect.height * H, 0, H)];
+  }
+  canvas.addEventListener("pointerdown", e => {
+    const [x, y] = toCanvas(e);
+    if (settings.path !== "drag") { drag.x = x; drag.y = y; selectPath("drag"); }
+    drag.active = true; drag.x = x; drag.y = y;
+    canvas.classList.add("dragging");
+    canvas.setPointerCapture(e.pointerId);
+  });
+  canvas.addEventListener("pointermove", e => { if (drag.active) { [drag.x, drag.y] = toCanvas(e); } });
+  ["pointerup", "pointercancel"].forEach(ev => canvas.addEventListener(ev, () => { drag.active = false; canvas.classList.remove("dragging"); }));
+
+  // Only run while visible
+  if ("IntersectionObserver" in window) {
+    new IntersectionObserver(entries => { inView = entries[0].isIntersecting; }, { threshold: 0.05 }).observe($("sim"));
+  }
+  if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    paused = true; $("pause").textContent = "Play"; $("pausedBadge").hidden = false;
+  }
+  if ("ResizeObserver" in window) new ResizeObserver(resize).observe(canvas); else window.addEventListener("resize", resize);
+
+  restart();
+  resize();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
