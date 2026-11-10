@@ -3,8 +3,7 @@
   <rect width="64" height="64" rx="14" fill="#121310"/>
   <g fill="#ece8de">
     <!-- R -->
-    <path fill-rule="evenodd" d="M10 19H21a7.5 7.5 0 0 1 0 15H15.5V45H10ZM15.5 24.5V28.5H21a2 2 0 0 0 0-4Z"/>
-    <path d="M18.5 34H24.2L29.5 45H23.8Z"/>
+    <path fill-rule="evenodd" d="M10 19H21A7.25 7.25 0 0 1 25.4 32L29.8 45H23.8L19.6 34H15.5V45H10ZM15.5 24.4V28.5H21A2.05 2.05 0 0 0 21 24.4Z"/>
     <!-- N -->
     <path d="M31.5 19H37L42 31.4V19H47.5V45H42L37 32.6V45H31.5Z"/>
   </g>
