@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Runway · Rohan Namdhari</title>
+<meta name="description" content="Runway: an AI finance team for early-stage startups, built on AWS at the AWS x A10 Hack 2026. Demo video, screenshots and how it works." />
+<meta name="theme-color" content="#f3f0e8" media="(prefers-color-scheme: light)" />
+<meta name="theme-color" content="#121310" media="(prefers-color-scheme: dark)" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23121310'/%3E%3Cpath d='M3 18h6l3-9 4 14 3-9 2 4h8' fill='none' stroke='%23f2703a' stroke-width='2.5' stroke-linejoin='round' stroke-linecap='round'/%3E%3C/svg%3E" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: hsl(42 30% 94%); --fg: hsl(60 10% 8%); --muted: hsl(40 22% 89%);
+    --muted-fg: hsl(40 6% 36%); --border: hsl(40 12% 79%); --accent: hsl(40 25% 90%);
+    --signal: hsl(14 82% 50%); --signal-ink: hsl(14 80% 36%);
+    --mono: "IBM Plex Mono", ui-monospace, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: hsl(80 8% 7%); --fg: hsl(45 22% 90%); --muted: hsl(60 6% 12%);
+      --muted-fg: hsl(45 7% 62%); --border: hsl(60 5% 21%); --accent: hsl(60 6% 11%);
+      --signal: hsl(18 90% 58%); --signal-ink: hsl(18 92% 64%);
+    }
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font-family: Archivo, system-ui, sans-serif; line-height: 1.55;
+  }
+  a { color: inherit; }
+  .bar { height: 3px; background: var(--signal); }
+  header { border-bottom: 1px solid var(--border); }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 16px; }
+  @media (min-width: 640px) { .wrap { padding: 0 32px; } }
+  .top { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; font: 500 12px var(--mono); letter-spacing: .03em; }
+  .top a { text-decoration: none; }
+  .top nav { display: flex; gap: 20px; color: var(--muted-fg); }
+  .top nav a:hover { color: var(--fg); }
+  .slash { color: var(--signal-ink); }
+
+  .hero { padding: 48px 0 28px; }
+  .eyebrow { font: 500 12px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--signal-ink); margin: 0 0 14px; }
+  h1 { font-size: clamp(44px, 9vw, 88px); font-weight: 800; font-stretch: 112%; line-height: .95; letter-spacing: -.02em; margin: 0; }
+  .lede { font-size: clamp(18px, 2.4vw, 22px); max-width: 40ch; margin: 18px 0 0; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 24px; }
+  .btn { display: inline-flex; align-items: center; height: 40px; padding: 0 16px; font-size: 14px; font-weight: 600; text-decoration: none; border: 1px solid color-mix(in srgb, var(--fg) 40%, transparent); transition: background .15s, border-color .15s; }
+  .btn:hover { border-color: var(--fg); background: var(--accent); }
+  .btn.primary { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+  .btn.primary:hover { background: var(--signal-ink); border-color: var(--signal-ink); }
+
+  .video { position: relative; aspect-ratio: 16 / 9; border: 1px solid var(--border); background: #000; }
+  .video iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+  .caption { font: 12px var(--mono); color: var(--muted-fg); margin-top: 8px; }
+
+  section { padding: 44px 0 0; }
+  h2 { font: 500 12px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted-fg); margin: 0 0 16px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+  p { max-width: 68ch; }
+  .muted { color: var(--muted-fg); }
+
+  .pillars { display: grid; gap: 1px; background: var(--border); border: 1px solid var(--border); }
+  @media (min-width: 760px) { .pillars { grid-template-columns: repeat(3, 1fr); } }
+  .pillars div { background: var(--bg); padding: 18px; }
+  .pillars h3 { margin: 0 0 6px; font-size: 17px; }
+  .pillars p { margin: 0; color: var(--muted-fg); font-size: 15px; }
+
+  ol.steps { list-style: none; counter-reset: s; padding: 0; margin: 0; display: grid; gap: 14px; }
+  ol.steps li { counter-increment: s; display: grid; grid-template-columns: 36px 1fr; }
+  ol.steps li::before { content: counter(s, decimal-leading-zero); font: 500 12px var(--mono); color: var(--signal-ink); padding-top: 4px; }
+  ol.steps strong { display: block; }
+  ol.steps span { color: var(--muted-fg); }
+
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; margin-top: 24px; }
+  .stats div { border-top: 2px solid var(--signal); padding-top: 8px; }
+  .stats b { display: block; font-size: 34px; font-stretch: 112%; line-height: 1.1; }
+  .stats span { font-size: 14px; color: var(--muted-fg); }
+
+  .shots { display: grid; gap: 16px; }
+  @media (min-width: 760px) { .shots { grid-template-columns: 1fr 1fr; } }
+  figure { margin: 0; }
+  figure img { display: block; width: 100%; height: auto; border: 1px solid var(--border); }
+  figcaption { font-size: 14px; color: var(--muted-fg); margin-top: 6px; }
+
+  .stack { display: flex; flex-wrap: wrap; gap: 6px; padding: 0; margin: 0; list-style: none; }
+  .stack li { border: 1px solid var(--border); padding: 2px 8px; font: 11px var(--mono); }
+
+  footer { border-top: 1px solid var(--border); margin-top: 64px; padding: 20px 0 40px; font: 12px var(--mono); color: var(--muted-fg); }
+</style>
+</head>
+<body>
+<div class="bar"></div>
+<header>
+  <div class="wrap top">
+    <a href="/">RN<span class="slash">/</span>CE</a>
+    <nav><a href="/#work">Work</a><a href="/#contact">Contact</a><a href="https://github.com/rohan2008" target="_blank" rel="noopener">GitHub</a></nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="hero">
+    <p class="eyebrow">AWS x A10 Hack 2026 · Team of 4</p>
+    <h1>Runway</h1>
+    <p class="lede">An AI finance team for early-stage startups, built on AWS. It watches AI, SaaS and card spend, flags waste, and negotiates renewals by email once the founder approves.</p>
+    <div class="actions">
+      <a class="btn primary" href="https://github.com/shreyassuman2/hackathon-aws" target="_blank" rel="noopener">Source on GitHub</a>
+      <a class="btn" href="https://devpost.com/software/hard-coders" target="_blank" rel="noopener">Devpost submission</a>
+    </div>
+  </div>
+
+  <div class="video">
+    <iframe src="https://www.youtube-nocookie.com/embed/etYD5_eDCn8?rel=0" title="Runway demo video" referrerpolicy="strict-origin-when-cross-origin" allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowfullscreen></iframe>
+  </div>
+  <p class="caption">Demo video: card swipe, dashboard, iMessage approval and vendor negotiation. <a href="https://www.youtube.com/watch?v=etYD5_eDCn8" target="_blank" rel="noopener">Watch on YouTube</a></p>
+
+  <section>
+    <h2>What it catches</h2>
+    <div class="pillars">
+      <div><h3>AI spend</h3><p>Week-over-week spikes, expensive models doing cheap work, and forgotten batch jobs.</p></div>
+      <div><h3>SaaS sprawl</h3><p>Dormant seats, overlapping tools, unused add-ons and upcoming renewals, which it can then negotiate.</p></div>
+      <div><h3>Compliance</h3><p>Card swipes over the cap, missing memos and red-flag merchants. It asks the employee before bothering the founder.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>How it works</h2>
+    <ol class="steps">
+      <li><div><strong>Swipe</strong><span>A card charge or bank-feed transaction hits the API.</span></div></li>
+      <li><div><strong>Route</strong><span>Known vendors go through fixed rules, and everything else goes to Claude Haiku on Bedrock. Founder policies can auto-approve or auto-cancel.</span></div></li>
+      <li><div><strong>Analyze</strong><span>A specialist agent for AI spend, SaaS or compliance writes the finding. The code does the maths; the model only writes the words.</span></div></li>
+      <li><div><strong>Ask</strong><span>The founder gets an iMessage at the right moment: right away, during business hours, or in the daily digest. A "y" reply approves that one alert and nothing else.</span></div></li>
+      <li><div><strong>Negotiate</strong><span>A worker Lambda emails the vendor, reads replies, counters, and texts the founder the result. Negotiation state survives across runs.</span></div></li>
+    </ol>
+    <div class="stats">
+      <div><b>100</b><span>backend tests, plus 6 for the iMessage bridge</span></div>
+      <div><b>3</b><span>Lambdas: API, negotiation worker, daily digest</span></div>
+      <div><b>22%</b><span>off a $1,400/mo Cursor renewal in the scripted demo</span></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>My part</h2>
+    <p>I owned the API and the conversation layer. That covered the FastAPI routes and Lambda handlers, the routing that turns a founder's text into an approval, a command ("cancel Notion", "show pending") or a question, and the Node bridge that connects iMessage on a Mac to the backend. I also wired the dashboard to the API and set up CI that runs the tests and scans for committed secrets.</p>
+  </section>
+
+  <section>
+    <h2>Screenshots</h2>
+    <div class="shots">
+      <figure><img src="img/overview.webp" width="1440" height="960" loading="lazy" alt="Runway overview dashboard showing $19,694 spent in 30 days, $1,113 a month in savings found and 13 decisions waiting" /><figcaption>Overview: 30-day spend, savings found, decisions waiting.</figcaption></figure>
+      <figure><img src="img/card-terminal.webp" width="1440" height="960" loading="lazy" alt="Card terminal with a $1,400 test charge to Cursor ready to submit" /><figcaption>Card terminal for swiping test charges.</figcaption></figure>
+      <figure><img src="img/ai-spend.webp" width="1440" height="960" loading="lazy" alt="AI spend page showing climbing Anthropic costs and $2,840 a month in routing savings" /><figcaption>AI spend: model-routing savings.</figcaption></figure>
+      <figure><img src="img/saas-seats.webp" width="1440" height="960" loading="lazy" alt="SaaS page showing 56 unused seats costing $6,065 a month" /><figcaption>SaaS: 56 seats nobody uses.</figcaption></figure>
+    </div>
+  </section>
+
+  <section>
+    <h2>Built with</h2>
+    <ul class="stack">
+      <li>Python</li><li>FastAPI</li><li>Pydantic</li><li>Amazon Bedrock (Claude)</li><li>AWS Lambda</li><li>API Gateway</li><li>DynamoDB</li><li>EventBridge</li><li>SES</li><li>AWS SAM</li><li>Node.js</li><li>Vite</li><li>Chart.js</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Team</h2>
+    <p>Built with Neil Syal, Shubham Choudhary and <a href="https://github.com/shreyassuman2" target="_blank" rel="noopener">shreyassuman2</a>. The repo lives on the team's GitHub.</p>
+  </section>
+</main>
+
+<footer><div class="wrap"><a href="/">← Back to all projects</a></div></footer>
+</body>
+</html>
