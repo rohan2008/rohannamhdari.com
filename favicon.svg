@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Rohan Namdhari</title>
+  <rect width="64" height="64" rx="14" fill="#121310"/>
+  <g fill="#ece8de">
+    <!-- R -->
+    <path fill-rule="evenodd" d="M10 19H21a7.5 7.5 0 0 1 0 15H15.5V45H10ZM15.5 24.5V28.5H21a2 2 0 0 0 0-4Z"/>
+    <path d="M18.5 34H24.2L29.5 45H23.8Z"/>
+    <!-- N -->
+    <path d="M31.5 19H37L42 31.4V19H47.5V45H42L37 32.6V45H31.5Z"/>
+  </g>
+  <!-- the orange period from "NAMDHARI." -->
+  <rect x="49.5" y="40" width="5" height="5" fill="#f2703a"/>
+</svg>
